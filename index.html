@@ -266,272 +266,166 @@ function MonthGrid({year,month,onDay}){
       </div>
     </div>
   );
-}<!DOCTYPE html>
-<html lang="it">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <meta name="theme-color" content="#F2F2F7"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-  <meta name="apple-mobile-web-app-title" content="Calendario"/>
-  <title>Calendario</title>
+}/* ----------- MAIN APP PREMIUM ----------- */
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+function App(){
 
-  <style>
-    *{
-      box-sizing:border-box;
-      -webkit-tap-highlight-color:transparent;
-      margin:0;
-      padding:0;
-    }
+  const [year,setYear]=useState(today.getFullYear());
+  const [month,setMonth]=useState(today.getMonth());
+  const [selectedDay,setSelectedDay]=useState(null);
 
-    html,body{
-      height:100%;
-      overflow:hidden;
-      background:#F2F2F7;
-      font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',sans-serif;
-      transition:background 0.3s ease;
-    }
-
-    body.dark{
-      background:#000;
-      color:#fff;
-    }
-
-    ::-webkit-scrollbar{
-      display:none;
-    }
-
-    input,textarea{
-      -webkit-appearance:none;
-      user-select:text;
-      font-family:inherit;
-    }
-
-    *{
-      user-select:none;
-    }
-
-    @keyframes fadeUp{
-      from{opacity:0;transform:translateY(12px)}
-      to{opacity:1;transform:translateY(0)}
-    }
-
-    .tap:active{
-      opacity:0.5;
-      transform:scale(0.97);
-    }
-
-    .card{
-      background:#FFFFFF;
-      border-radius:16px;
-      box-shadow:0 1px 2px rgba(0,0,0,0.04),
-                 0 4px 12px rgba(0,0,0,0.04);
-      transition:all 0.2s ease;
-    }
-
-    body.dark .card{
-      background:#1C1C1E;
-      box-shadow:none;
-    }
-  </style>
-</head>
-
-<body>
-<div id="root" style="height:100%"></div>
-
-<script type="text/babel">
-const {useState,useEffect,useRef} = React;
-
-const MONTHS=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
-const MONTHS_S=["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"];
-const DAYS=["L","M","M","G","V","S","D"];
-
-const today=new Date();
-const todayStr=formatDate(today.getFullYear(),today.getMonth(),today.getDate());
-
-function formatDate(y,m,d){
-  return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-}
-
-function daysInMonth(y,m){
-  return new Date(y,m+1,0).getDate();
-}
-
-function firstDay(y,m){
-  const d=new Date(y,m,1).getDay();
-  return d===0?6:d-1;
-}
-
-function addMonths(y,m,delta){
-  let nm=m+delta,ny=y;
-  while(nm>11){nm-=12;ny++;}
-  while(nm<0){nm+=12;ny--;}
-  return {year:ny,month:nm};
-}
-
-/* ----------- SWIPE CALENDAR PREMIUM ----------- */
-
-function SwipeCalendar({year,month,onMonthChange,onDay}){
-
-  const containerRef=useRef(null);
-  const startX=useRef(0);
-  const startY=useRef(0);
-  const moved=useRef(false);
-  const offset=useRef(0);
-  const [translate,setTranslate]=useState(0);
-  const [anim,setAnim]=useState(false);
-  const width=useRef(0);
-
+  /* DARK MODE AUTOMATICA */
   useEffect(()=>{
-    if(containerRef.current){
-      width.current=containerRef.current.offsetWidth;
-    }
+    const darkQuery=window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme=()=>{
+      if(darkQuery.matches){
+        document.body.classList.add("dark");
+      }else{
+        document.body.classList.remove("dark");
+      }
+    };
+    applyTheme();
+    darkQuery.addEventListener("change",applyTheme);
+    return ()=>darkQuery.removeEventListener("change",applyTheme);
   },[]);
 
-  const handleStart=e=>{
-    if(anim) return;
-    startX.current=e.touches[0].clientX;
-    startY.current=e.touches[0].clientY;
-    moved.current=false;
-  };
-
-  const handleMove=e=>{
-    const dx=e.touches[0].clientX-startX.current;
-    const dy=Math.abs(e.touches[0].clientY-startY.current);
-
-    if(dy>Math.abs(dx)) return;
-
-    moved.current=true;
-    offset.current=dx;
-    setTranslate(dx);
-  };
-
-  const handleEnd=()=>{
-    const threshold=width.current*0.25;
-    setAnim(true);
-
-    if(offset.current<-threshold){
-      setTranslate(-width.current);
-      setTimeout(()=>{
-        const n=addMonths(year,month,1);
-        onMonthChange(n.year,n.month);
-        setTranslate(0);
-        setAnim(false);
-      },350);
-    }
-    else if(offset.current>threshold){
-      setTranslate(width.current);
-      setTimeout(()=>{
-        const n=addMonths(year,month,-1);
-        onMonthChange(n.year,n.month);
-        setTranslate(0);
-        setAnim(false);
-      },350);
-    }
-    else{
-      setTranslate(0);
-      setTimeout(()=>setAnim(false),350);
-    }
-
-    offset.current=0;
-  };
-
   return(
-    <div
-      ref={containerRef}
-      style={{overflow:"hidden",position:"relative"}}
-      onTouchStart={handleStart}
-      onTouchMove={handleMove}
-      onTouchEnd={handleEnd}
-    >
-      <div
-        style={{
+    <div style={{
+      maxWidth:"430px",
+      margin:"0 auto",
+      height:"100vh",
+      display:"flex",
+      flexDirection:"column",
+      overflow:"hidden"
+    }}>
+
+      {/* HEADER PREMIUM */}
+      <div style={{
+        paddingTop:"env(safe-area-inset-top,40px)",
+        background:"rgba(255,255,255,0.8)",
+        backdropFilter:"blur(20px)",
+        WebkitBackdropFilter:"blur(20px)",
+        borderBottom:"1px solid rgba(60,60,67,0.1)"
+      }}>
+
+        <div style={{
           display:"flex",
-          width:"300%",
-          transform:`translateX(calc(-33.333% + ${translate}px))`,
-          transition:anim?"transform 0.35s cubic-bezier(0.32,0.72,0,1)":"none"
-        }}
-      >
-        <MonthGrid year={addMonths(year,month,-1).year} month={addMonths(year,month,-1).month} onDay={onDay}/>
-        <MonthGrid year={year} month={month} onDay={onDay}/>
-        <MonthGrid year={addMonths(year,month,1).year} month={addMonths(year,month,1).month} onDay={onDay}/>
-      </div>
-    </div>
-  );
-}
+          alignItems:"center",
+          justifyContent:"space-between",
+          padding:"10px 16px"
+        }}>
 
-/* ----------- MONTH GRID (FIX TAP PROFESSIONALE) ----------- */
+          <button
+            className="tap"
+            onClick={()=>{
+              const n=addMonths(year,month,-1);
+              setYear(n.year);
+              setMonth(n.month);
+            }}
+            style={{
+              border:"none",
+              background:"none",
+              fontSize:"24px",
+              color:"#007AFF",
+              cursor:"pointer"
+            }}
+          >
+            ‹
+          </button>
 
-function MonthGrid({year,month,onDay}){
-
-  const fd=firstDay(year,month);
-  const total=daysInMonth(year,month);
-
-  return(
-    <div style={{width:"33.333%",padding:"0 6px"}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:"6px"}}>
-        {DAYS.map((d,i)=>(
-          <div key={i} style={{
-            textAlign:"center",
-            fontSize:"11px",
-            fontWeight:"600",
-            color:i>=5?"#FF9500":"rgba(60,60,67,0.4)"
-          }}>{d}</div>
-        ))}
-      </div>
-
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"2px"}}>
-        {Array.from({length:fd}).map((_,i)=><div key={"e"+i}/>)}
-
-        {Array.from({length:total}).map((_,i)=>{
-          const day=i+1;
-          const key=formatDate(year,month,day);
-          const isToday=key===todayStr;
-
-          return(
-            <div
-              key={key}
-              onTouchStart={(e)=>{
-                window.__startX=e.touches[0].clientX;
-                window.__startY=e.touches[0].clientY;
-                window.__moved=false;
-              }}
-              onTouchMove={(e)=>{
-                const dx=Math.abs(e.touches[0].clientX-window.__startX);
-                const dy=Math.abs(e.touches[0].clientY-window.__startY);
-                if(dx>10||dy>10){
-                  window.__moved=true;
-                }
-              }}
-              onTouchEnd={()=>{
-                if(!window.__moved){
-                  onDay(key);
-                }
-              }}
-              style={{
-                aspectRatio:"1",
-                display:"flex",
-                alignItems:"center",
-                justifyContent:"center",
-                borderRadius:"50%",
-                cursor:"pointer",
-                fontSize:"15px",
-                fontWeight:isToday?"700":"400",
-                background:isToday?"#FF3B30":"transparent",
-                color:isToday?"#fff":"#1C1C1E",
-                transition:"all 0.15s ease"
-              }}
-            >
-              {day}
+          <div style={{textAlign:"center"}}>
+            <div style={{
+              fontSize:"18px",
+              fontWeight:"700",
+              letterSpacing:"-0.3px"
+            }}>
+              Calendario
             </div>
-          );
-        })}
+            <div style={{
+              fontSize:"14px",
+              color:"rgba(60,60,67,0.5)"
+            }}>
+              {MONTHS[month]} {year}
+            </div>
+          </div>
+
+          <button
+            className="tap"
+            onClick={()=>{
+              const n=addMonths(year,month,1);
+              setYear(n.year);
+              setMonth(n.month);
+            }}
+            style={{
+              border:"none",
+              background:"none",
+              fontSize:"24px",
+              color:"#007AFF",
+              cursor:"pointer"
+            }}
+          >
+            ›
+          </button>
+
+        </div>
       </div>
+
+      {/* CONTENUTO */}
+      <div style={{
+        flex:1,
+        overflowY:"auto",
+        padding:"12px"
+      }}>
+
+        <div className="card" style={{padding:"12px"}}>
+          <SwipeCalendar
+            year={year}
+            month={month}
+            onMonthChange={(y,m)=>{
+              setYear(y);
+              setMonth(m);
+            }}
+            onDay={(day)=>{
+              selectedDay!==day && navigator.vibrate && navigator.vibrate(10);
+              setSelectedDay(day);
+            }}
+          />
+        </div>
+
+        {selectedDay && (
+          <div
+            className="card"
+            style={{
+              marginTop:"16px",
+              padding:"16px",
+              animation:"fadeUp 0.25s ease"
+            }}
+          >
+            <div style={{
+              fontWeight:"600",
+              fontSize:"16px",
+              marginBottom:"6px"
+            }}>
+              Giorno selezionato
+            </div>
+            <div style={{
+              fontSize:"14px",
+              color:"rgba(60,60,67,0.6)"
+            }}>
+              {selectedDay}
+            </div>
+          </div>
+        )}
+
+      </div>
+
     </div>
   );
 }
+
+/* RENDER */
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+
+</script>
+</body>
+</html>
