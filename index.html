@@ -104,7 +104,7 @@ function getAlerts(ev){
 
 // ── AI CALL (Gemini) ──────────────────────────────────────────────────────────
 const GEMINI_KEY_SK="ilmioanno_gemini_key";
-function getGeminiKey(){try{return localStorage.getItem(GEMINI_KEY_SK)||""}catch{return""}}
+function getGeminiKey(){try{return localStorage.getItem(GEMINI_KEY_SK)||"AIzaSyAh8c9zTtFa5_SByMor43FcA2mxhkQ0FiY"}catch{return"AIzaSyAh8c9zTtFa5_SByMor43FcA2mxhkQ0FiY"}}
 function saveGeminiKey(k){try{localStorage.setItem(GEMINI_KEY_SK,k)}catch{}}
 
 async function callAI(prompt){
@@ -325,7 +325,7 @@ function GeminiSetup({onDone,onClose,dark}){
 function EserciziPanel({event,onClose}){
   const {dark}=React.useContext(ThemeCtx);
   const [livello,setLivello]=useState(3);
-  const [step,setStep]=useState(getGeminiKey()?"livello":"setup");
+  const [step,setStep]=useState("livello");
   const [esercizi,setEsercizi]=useState("");
   const [vis,setVis]=useState(false);
   useEffect(()=>{requestAnimationFrame(()=>setVis(true))},[]);
@@ -425,7 +425,7 @@ Sii conciso, pratico e incoraggiante. Usa emoji. Rispondi in italiano.`;
 function ListaSpesaPanel({event,onClose,onSaveNote}){
   const {dark}=React.useContext(ThemeCtx);
   const [piatti,setPiatti]=useState("");
-  const [step,setStep]=useState(getGeminiKey()?"input":"setup");
+  const [step,setStep]=useState("input");
   const [lista,setLista]=useState([]);
   const [vis,setVis]=useState(false);
   useEffect(()=>{requestAnimationFrame(()=>setVis(true))},[]);
