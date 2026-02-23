@@ -8,8 +8,6 @@
 <meta name="apple-mobile-web-app-title" content="Calendario"/>
 <title>Calendario</title>
 
-<link rel="manifest" href="manifest.json"/>
-
 <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -22,8 +20,6 @@ body{
   -webkit-tap-highlight-color:transparent;
 }
 .app{
-  max-width:430px;
-  margin:0 auto;
   min-height:100vh;
   display:flex;
   flex-direction:column;
@@ -37,33 +33,34 @@ body{
   display:flex;
   justify-content:space-between;
   align-items:center;
-  padding:12px 16px;
+  padding:16px;
 }
 .month-title{
   font-weight:600;
-  font-size:17px;
+  font-size:20px;
 }
 .nav-btn{
-  font-size:24px;
+  font-size:26px;
   background:none;
   border:none;
   color:#007aff;
 }
 .calendar{
-  padding:12px;
+  padding:16px;
 }
 .grid{
   display:grid;
   grid-template-columns:repeat(7,1fr);
-  gap:6px;
+  gap:8px;
 }
 .day{
   background:white;
-  border-radius:10px;
+  border-radius:14px;
   text-align:center;
-  padding:10px 0;
-  font-size:14px;
+  padding:16px 0;
+  font-size:16px;
   position:relative;
+  user-select:none;
 }
 .day.selected{
   background:#007aff;
@@ -75,18 +72,18 @@ body{
   background:#ff3b30;
   border-radius:50%;
   position:absolute;
-  bottom:4px;
+  bottom:6px;
   left:50%;
   transform:translateX(-50%);
 }
 .event-list{
   background:white;
-  margin-top:12px;
-  border-radius:14px;
-  padding:14px;
+  margin:16px;
+  border-radius:20px;
+  padding:20px;
 }
 .event-item{
-  padding:10px 0;
+  padding:12px 0;
   border-bottom:1px solid #e5e5ea;
 }
 .event-item:last-child{
@@ -94,44 +91,45 @@ body{
 }
 .add-btn{
   position:fixed;
-  bottom:20px;
-  right:20px;
+  bottom:30px;
+  right:25px;
   background:#007aff;
   color:white;
   border:none;
   border-radius:50%;
-  width:56px;
-  height:56px;
-  font-size:30px;
+  width:64px;
+  height:64px;
+  font-size:34px;
 }
 .modal{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,0.3);
+  background:rgba(0,0,0,0.35);
   display:flex;
   align-items:flex-end;
 }
 .sheet{
   background:white;
   width:100%;
-  border-radius:20px 20px 0 0;
-  padding:20px;
+  border-radius:30px 30px 0 0;
+  padding:24px;
+  max-height:85vh;
+  overflow:auto;
 }
 .category{
   display:flex;
   align-items:center;
   justify-content:space-between;
-  padding:14px;
+  padding:18px;
   background:#f2f2f7;
-  border-radius:14px;
-  margin-bottom:12px;
-}
-.category-title{
-  font-weight:500;
+  border-radius:18px;
+  margin-bottom:14px;
+  font-size:18px;
 }
 .back{
   color:#007aff;
-  margin-bottom:10px;
+  margin-bottom:16px;
+  font-size:18px;
 }
 </style>
 </head>
@@ -140,7 +138,7 @@ body{
 
 <script type="text/babel">
 
-const {useState,useEffect,useRef}=React;
+const {useState,useRef}=React;
 
 const MONTHS=[
 "Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
@@ -156,175 +154,146 @@ function getDays(year,month){
   return arr;
 }function App(){
 
-  const today=new Date();
-  const [year,setYear]=useState(today.getFullYear());
-  const [month,setMonth]=useState(today.getMonth());
-  const [selectedDay,setSelectedDay]=useState(null);
+const today=new Date();
+const [year,setYear]=useState(today.getFullYear());
+const [month,setMonth]=useState(today.getMonth());
+const [selectedDay,setSelectedDay]=useState(today.getDate());
+const [events,setEvents]=useState(JSON.parse(localStorage.getItem("events")||"{}"));
 
-  const [events,setEvents]=useState({});
-  const [showModal,setShowModal]=useState(false);
-  const [step,setStep]=useState("main");
-  const [currentCategory,setCurrentCategory]=useState(null);
+const [showModal,setShowModal]=useState(false);
+const [step,setStep]=useState("main");
+const [selectedCategory,setSelectedCategory]=useState(null);
 
-  const touchStartX=useRef(null);
-  const touchStartY=useRef(null);
-  const isSwiping=useRef(false);
+const touchStart=useRef(null);
+const isSwiping=useRef(false);
 
-  const changeMonth=(offset)=>{
-    const d=new Date(year,month+offset,1);
-    setYear(d.getFullYear());
-    setMonth(d.getMonth());
-  };
+const days=getDays(year,month);
+const key=`${year}-${month}-${selectedDay}`;
+const dayEvents=events[key]||[];
 
-  const onTouchStart=e=>{
-    touchStartX.current=e.touches[0].clientX;
-    touchStartY.current=e.touches[0].clientY;
-    isSwiping.current=false;
-  };
+function saveEvents(newEvents){
+  setEvents(newEvents);
+  localStorage.setItem("events",JSON.stringify(newEvents));
+}
 
-  const onTouchMove=e=>{
-    const dx=e.touches[0].clientX-touchStartX.current;
-    const dy=e.touches[0].clientY-touchStartY.current;
-    if(Math.abs(dx)>30 && Math.abs(dx)>Math.abs(dy)){
-      isSwiping.current=true;
-    }
-  };
+function addEvent(text){
+  const updated={...events};
+  if(!updated[key]) updated[key]=[];
+  updated[key].push(text);
+  saveEvents(updated);
+  setShowModal(false);
+  setStep("main");
+}
 
-  const onTouchEnd=e=>{
-    const dx=e.changedTouches[0].clientX-touchStartX.current;
-    if(isSwiping.current){
-      if(dx>50) changeMonth(-1);
-      if(dx<-50) changeMonth(1);
-    }
-  };
+function changeMonth(dir){
+  let newMonth=month+dir;
+  let newYear=year;
+  if(newMonth<0){ newMonth=11; newYear--; }
+  if(newMonth>11){ newMonth=0; newYear++; }
+  setMonth(newMonth);
+  setYear(newYear);
+}
 
-  const addEvent=(text)=>{
-    const key=`${year}-${month}-${selectedDay}`;
-    setEvents(prev=>{
-      const list=prev[key]||[];
-      return {...prev,[key]:[...list,text]};
-    });
-    setShowModal(false);
-    setStep("main");
-  };
+function handleTouchStart(e){
+  touchStart.current=e.touches[0].clientX;
+  isSwiping.current=false;
+}
 
-  const days=getDays(year,month);
-  const key=`${year}-${month}-${selectedDay}`;
-  const dayEvents=events[key]||[];
+function handleTouchMove(e){
+  if(!touchStart.current) return;
+  const diff=e.touches[0].clientX-touchStart.current;
+  if(Math.abs(diff)>15){
+    isSwiping.current=true;
+  }
+}
 
-  return(
-    <div className="app">
+function handleTouchEnd(e){
+  if(!touchStart.current) return;
+  const diff=e.changedTouches[0].clientX-touchStart.current;
+  if(Math.abs(diff)>70){
+    if(diff>0) changeMonth(-1);
+    else changeMonth(1);
+  }
+  touchStart.current=null;
+  setTimeout(()=>{isSwiping.current=false},100);
+}
 
-      <div className="header">
-        <div className="header-inner">
-          <button className="nav-btn" onClick={()=>changeMonth(-1)}>‹</button>
-          <div className="month-title">{MONTHS[month]} {year}</div>
-          <button className="nav-btn" onClick={()=>changeMonth(1)}>›</button>
-        </div>
-      </div>
+return(
+<div className="app">
 
-      <div className="calendar"
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-      >
-        <div className="grid">
-          {days.map((d,i)=>{
-            const hasEvent=events[`${year}-${month}-${d}`];
-            return(
-              <div
-                key={i}
-                className={`day ${selectedDay===d?"selected":""}`}
-                onClick={()=>!isSwiping.current && d && setSelectedDay(d)}
-              >
-                {d}
-                {hasEvent && <div className="dot"></div>}
-              </div>
-            )
-          })}
-        </div>
-
-        {selectedDay && (
-          <div className="event-list">
-            <div style={{fontWeight:"600",marginBottom:"8px"}}>
-              Eventi del {selectedDay} {MONTHS[month]}
-            </div>
-
-            {dayEvents.length===0 && <div>Nessun evento</div>}
-
-            {dayEvents.map((ev,i)=>(
-              <div key={i} className="event-item">{ev}</div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {selectedDay && (
-        <button className="add-btn" onClick={()=>setShowModal(true)}>+</button>
-      )}
-
-      {showModal && (
-        <div className="modal">
-          <div className="sheet">
-
-            {step==="main" && (
-              <>
-                <div className="category" onClick={()=>{setCurrentCategory("Verifica");setStep("detail")}}>
-                  <div className="category-title">📘 Verifica</div>
-                </div>
-                <div className="category" onClick={()=>{setCurrentCategory("Compleanno");setStep("detail")}}>
-                  <div className="category-title">🎂 Compleanno</div>
-                </div>
-                <div className="category" onClick={()=>{setCurrentCategory("Commissione");setStep("detail")}}>
-                  <div className="category-title">🛒 Commissione</div>
-                </div>
-                <div className="category" onClick={()=>{setCurrentCategory("Appuntamento");setStep("detail")}}>
-                  <div className="category-title">🏥 Appuntamento</div>
-                </div>
-                <div className="category" onClick={()=>{setCurrentCategory("Da fare");setStep("detail")}}>
-                  <div className="category-title">✅ Da fare</div>
-                </div>
-              </>
-            )}
-
-            {step==="detail" && (
-              <>
-                <div className="back" onClick={()=>setStep("main")}>‹ Indietro</div>
-                <div style={{marginBottom:"10px",fontWeight:"600"}}>
-                  {currentCategory}
-                </div>
-                <input
-                  placeholder="Scrivi qui..."
-                  style={{
-                    width:"100%",
-                    padding:"10px",
-                    borderRadius:"10px",
-                    border:"1px solid #e5e5ea",
-                    marginBottom:"12px"
-                  }}
-                  onKeyDown={e=>{
-                    if(e.key==="Enter" && e.target.value){
-                      addEvent(`${currentCategory}: ${e.target.value}`);
-                    }
-                  }}
-                />
-              </>
-            )}
-
-            <div style={{textAlign:"right"}}>
-              <button onClick={()=>setShowModal(false)}>Chiudi</button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
+<div className="header">
+  <div className="header-inner">
+    <button className="nav-btn" onClick={()=>changeMonth(-1)}>‹</button>
+    <div className="month-title">
+      {MONTHS[month]} {year}
     </div>
-  );
+    <button className="nav-btn" onClick={()=>changeMonth(1)}>›</button>
+  </div>
+</div>
+
+<div className="calendar"
+onTouchStart={handleTouchStart}
+onTouchMove={handleTouchMove}
+onTouchEnd={handleTouchEnd}
+>
+  <div className="grid">
+    {days.map((d,i)=>(
+      <div
+        key={i}
+        className={`day ${d===selectedDay?"selected":""}`}
+        onClick={()=>{ if(!isSwiping.current && d) setSelectedDay(d)}}
+      >
+        {d}
+        {events[`${year}-${month}-${d}`] && <div className="dot"></div>}
+      </div>
+    ))}
+  </div>
+</div>
+
+<div className="event-list">
+  <h3>Eventi del {selectedDay} {MONTHS[month]}</h3>
+  {dayEvents.length===0 && <div>Nessun evento</div>}
+  {dayEvents.map((ev,i)=>(
+    <div key={i} className="event-item">{ev}</div>
+  ))}
+</div>
+
+<button className="add-btn" onClick={()=>setShowModal(true)}>+</button>
+
+{showModal && (
+<div className="modal" onClick={()=>setShowModal(false)}>
+<div className="sheet" onClick={e=>e.stopPropagation()}>
+
+{step==="main" && (
+<>
+<div className="category" onClick={()=>{setStep("verifica");setSelectedCategory("Verifica")}}>📘 Verifica</div>
+<div className="category" onClick={()=>addEvent("🎂 Compleanno")}>🎂 Compleanno</div>
+<div className="category" onClick={()=>addEvent("🛒 Commissione")}>🛒 Commissione</div>
+<div className="category" onClick={()=>addEvent("🏥 Appuntamento")}>🏥 Appuntamento</div>
+<div className="category" onClick={()=>addEvent("✅ Da fare")}>✅ Da fare</div>
+</>
+)}
+
+{step==="verifica" && (
+<>
+<div className="back" onClick={()=>setStep("main")}>‹ Indietro</div>
+{["Matematica","Italiano","Storia","Scienze","Inglese","Fisica","Chimica","Geografia","Arte","Musica","Filosofia","Informatica","Ed. Fisica","Latino","Altra"].map(m=>(
+<div key={m} className="category" onClick={()=>addEvent(`📘 Verifica di ${m}`)}>
+{m}
+</div>
+))}
+</>
+)}
+
+</div>
+</div>
+)}
+
+</div>
+);
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
-
 </script>
 </body>
 </html>
