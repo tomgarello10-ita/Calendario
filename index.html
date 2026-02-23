@@ -110,16 +110,21 @@ function saveGeminiKey(k){try{localStorage.setItem(GEMINI_KEY_SK,k)}catch{}}
 async function callAI(prompt){
   const key=getGeminiKey();
   if(!key)throw new Error("NO_KEY");
-  const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
-  });
-  if(!res.ok){
-    const err=await res.json().catch(()=>({}));
-    throw new Error(err?.error?.message||"API_ERROR");
+  let res;
+  try{
+    res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
+    });
+  }catch(fetchErr){
+    throw new Error("RETE: "+fetchErr.message);
   }
   const data=await res.json();
+  if(!res.ok){
+    const msg=data?.error?.message||("HTTP "+res.status);
+    throw new Error("GEMINI: "+msg);
+  }
   return data.candidates?.[0]?.content?.parts?.[0]?.text||"";
 }
 
@@ -272,10 +277,12 @@ function GeminiSetup({onDone,onClose,dark}){
       saveGeminiKey(key.trim());
       onDone();
     }catch(e){
-      if(e.message==="NO_KEY"||e.message.includes("API_KEY")||e.message.includes("key"))
-        setErr("❌ Chiave non valida. Controlla di averla copiata bene.");
-      else if(e.message.includes("fetch")||e.message.includes("network"))
-        setErr("❌ Errore di rete. Controlla la connessione.");
+      if(e.message==="NO_KEY")
+        setErr("❌ Inserisci la chiave prima.");
+      else if(e.message.startsWith("RETE:"))
+        setErr("❌ Errore di rete — controlla la connessione internet.");
+      else if(e.message.startsWith("GEMINI:"))
+        setErr("❌ "+e.message.replace("GEMINI: ",""));
       else
         setErr("❌ "+e.message);
     }
