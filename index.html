@@ -15,121 +15,117 @@
 <style>
 body{
   margin:0;
-  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;
   background:#f2f2f7;
-  -webkit-tap-highlight-color:transparent;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;
+  overflow:hidden;
 }
+
 .app{
-  min-height:100vh;
+  height:100vh;
   display:flex;
   flex-direction:column;
 }
+
 .header{
   padding-top:env(safe-area-inset-top);
   background:white;
+  text-align:center;
+  font-weight:600;
+  font-size:20px;
+  padding-bottom:10px;
   border-bottom:1px solid #e5e5ea;
 }
-.header-inner{
+
+.month-nav{
   display:flex;
   justify-content:space-between;
   align-items:center;
-  padding:16px;
+  padding:0 20px 10px 20px;
 }
-.month-title{
-  font-weight:600;
-  font-size:20px;
-}
+
 .nav-btn{
   font-size:26px;
   background:none;
   border:none;
   color:#007aff;
 }
-.calendar{
-  padding:16px;
-}
-.grid{
+
+.weekdays{
   display:grid;
   grid-template-columns:repeat(7,1fr);
-  gap:8px;
-}
-.day{
-  background:white;
-  border-radius:14px;
   text-align:center;
-  padding:16px 0;
-  font-size:16px;
+  font-size:14px;
+  color:#8e8e93;
+  padding:5px 0;
+}
+
+.calendar{
+  flex:1;
+  display:grid;
+  grid-template-rows:repeat(6,1fr);
+}
+
+.week{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+}
+
+.day{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:18px;
   position:relative;
-  user-select:none;
 }
+
 .day.selected{
-  background:#007aff;
-  color:white;
-}
-.dot{
-  width:6px;
-  height:6px;
   background:#ff3b30;
-  border-radius:50%;
-  position:absolute;
-  bottom:6px;
-  left:50%;
-  transform:translateX(-50%);
-}
-.event-list{
-  background:white;
-  margin:16px;
-  border-radius:20px;
-  padding:20px;
-}
-.event-item{
-  padding:12px 0;
-  border-bottom:1px solid #e5e5ea;
-}
-.event-item:last-child{
-  border:none;
-}
-.add-btn{
-  position:fixed;
-  bottom:30px;
-  right:25px;
-  background:#007aff;
   color:white;
-  border:none;
   border-radius:50%;
-  width:64px;
-  height:64px;
-  font-size:34px;
+  width:40px;
+  height:40px;
+  margin:auto;
 }
+
+.categories{
+  background:white;
+  padding:15px;
+  border-radius:20px 20px 0 0;
+}
+
 .modal{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,0.35);
+  background:rgba(0,0,0,0.4);
   display:flex;
   align-items:flex-end;
 }
+
 .sheet{
   background:white;
   width:100%;
-  border-radius:30px 30px 0 0;
-  padding:24px;
+  border-radius:25px 25px 0 0;
+  padding:20px;
   max-height:85vh;
   overflow:auto;
 }
-.category{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding:18px;
+
+.grid3{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:15px;
+}
+
+.box{
   background:#f2f2f7;
-  border-radius:18px;
-  margin-bottom:14px;
-  font-size:18px;
+  border-radius:15px;
+  text-align:center;
+  padding:15px 5px;
+  font-size:16px;
 }
 .back{
   color:#007aff;
-  margin-bottom:16px;
-  font-size:18px;
+  margin-bottom:15px;
 }
 </style>
 </head>
@@ -138,156 +134,140 @@ body{
 
 <script type="text/babel">
 
-const {useState,useRef}=React;
+const {useState}=React;
 
-const MONTHS=[
-"Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
-"Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"
-];
+const MONTHS=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+const DAYS=["L","M","M","G","V","S","D"];
 
-function getDays(year,month){
+function getCalendar(year,month){
   const first=new Date(year,month,1).getDay();
   const total=new Date(year,month+1,0).getDate();
-  let arr=[];
-  for(let i=0;i<first;i++) arr.push(null);
-  for(let i=1;i<=total;i++) arr.push(i);
-  return arr;
+  let days=[];
+  for(let i=0;i<first;i++) days.push(null);
+  for(let i=1;i<=total;i++) days.push(i);
+  while(days.length<42) days.push(null);
+  return days;
 }function App(){
 
 const today=new Date();
 const [year,setYear]=useState(today.getFullYear());
 const [month,setMonth]=useState(today.getMonth());
-const [selectedDay,setSelectedDay]=useState(today.getDate());
-const [events,setEvents]=useState(JSON.parse(localStorage.getItem("events")||"{}"));
+const [selected,setSelected]=useState(today.getDate());
 
-const [showModal,setShowModal]=useState(false);
+const [show,setShow]=useState(false);
 const [step,setStep]=useState("main");
-const [selectedCategory,setSelectedCategory]=useState(null);
 
-const touchStart=useRef(null);
-const isSwiping=useRef(false);
-
-const days=getDays(year,month);
-const key=`${year}-${month}-${selectedDay}`;
-const dayEvents=events[key]||[];
-
-function saveEvents(newEvents){
-  setEvents(newEvents);
-  localStorage.setItem("events",JSON.stringify(newEvents));
-}
-
-function addEvent(text){
-  const updated={...events};
-  if(!updated[key]) updated[key]=[];
-  updated[key].push(text);
-  saveEvents(updated);
-  setShowModal(false);
-  setStep("main");
-}
+const calendar=getCalendar(year,month);
 
 function changeMonth(dir){
-  let newMonth=month+dir;
-  let newYear=year;
-  if(newMonth<0){ newMonth=11; newYear--; }
-  if(newMonth>11){ newMonth=0; newYear++; }
-  setMonth(newMonth);
-  setYear(newYear);
-}
-
-function handleTouchStart(e){
-  touchStart.current=e.touches[0].clientX;
-  isSwiping.current=false;
-}
-
-function handleTouchMove(e){
-  if(!touchStart.current) return;
-  const diff=e.touches[0].clientX-touchStart.current;
-  if(Math.abs(diff)>15){
-    isSwiping.current=true;
-  }
-}
-
-function handleTouchEnd(e){
-  if(!touchStart.current) return;
-  const diff=e.changedTouches[0].clientX-touchStart.current;
-  if(Math.abs(diff)>70){
-    if(diff>0) changeMonth(-1);
-    else changeMonth(1);
-  }
-  touchStart.current=null;
-  setTimeout(()=>{isSwiping.current=false},100);
+  let m=month+dir;
+  let y=year;
+  if(m<0){m=11;y--}
+  if(m>11){m=0;y++}
+  setMonth(m);
+  setYear(y);
 }
 
 return(
 <div className="app">
 
 <div className="header">
-  <div className="header-inner">
+  <div className="month-nav">
     <button className="nav-btn" onClick={()=>changeMonth(-1)}>‹</button>
-    <div className="month-title">
-      {MONTHS[month]} {year}
-    </div>
+    <div>{MONTHS[month]} {year}</div>
     <button className="nav-btn" onClick={()=>changeMonth(1)}>›</button>
   </div>
 </div>
 
-<div className="calendar"
-onTouchStart={handleTouchStart}
-onTouchMove={handleTouchMove}
-onTouchEnd={handleTouchEnd}
->
-  <div className="grid">
-    {days.map((d,i)=>(
-      <div
-        key={i}
-        className={`day ${d===selectedDay?"selected":""}`}
-        onClick={()=>{ if(!isSwiping.current && d) setSelectedDay(d)}}
-      >
-        {d}
-        {events[`${year}-${month}-${d}`] && <div className="dot"></div>}
-      </div>
-    ))}
-  </div>
+<div className="weekdays">
+  {DAYS.map(d=><div key={d}>{d}</div>)}
 </div>
 
-<div className="event-list">
-  <h3>Eventi del {selectedDay} {MONTHS[month]}</h3>
-  {dayEvents.length===0 && <div>Nessun evento</div>}
-  {dayEvents.map((ev,i)=>(
-    <div key={i} className="event-item">{ev}</div>
-  ))}
+<div className="calendar">
+{
+[0,1,2,3,4,5].map(w=>(
+<div key={w} className="week">
+{
+calendar.slice(w*7,w*7+7).map((d,i)=>(
+<div key={i} className="day" onClick={()=>d && setSelected(d)}>
+{d && (
+<div className={d===selected?"selected":""}>
+{d}
+</div>
+)}
+</div>
+))
+}
+</div>
+))
+}
 </div>
 
-<button className="add-btn" onClick={()=>setShowModal(true)}>+</button>
-
-{showModal && (
-<div className="modal" onClick={()=>setShowModal(false)}>
+{show && (
+<div className="modal" onClick={()=>setShow(false)}>
 <div className="sheet" onClick={e=>e.stopPropagation()}>
 
 {step==="main" && (
 <>
-<div className="category" onClick={()=>{setStep("verifica");setSelectedCategory("Verifica")}}>📘 Verifica</div>
-<div className="category" onClick={()=>addEvent("🎂 Compleanno")}>🎂 Compleanno</div>
-<div className="category" onClick={()=>addEvent("🛒 Commissione")}>🛒 Commissione</div>
-<div className="category" onClick={()=>addEvent("🏥 Appuntamento")}>🏥 Appuntamento</div>
-<div className="category" onClick={()=>addEvent("✅ Da fare")}>✅ Da fare</div>
+<div className="box" onClick={()=>setStep("verifica")}>📘 Verifica</div>
+<div className="box">🎂 Compleanno</div>
+<div className="box">🛒 Commissione</div>
+<div className="box">🏥 Appuntamento</div>
+<div className="box">✅ Da fare</div>
 </>
 )}
 
 {step==="verifica" && (
 <>
 <div className="back" onClick={()=>setStep("main")}>‹ Indietro</div>
-{["Matematica","Italiano","Storia","Scienze","Inglese","Fisica","Chimica","Geografia","Arte","Musica","Filosofia","Informatica","Ed. Fisica","Latino","Altra"].map(m=>(
-<div key={m} className="category" onClick={()=>addEvent(`📘 Verifica di ${m}`)}>
-{m}
+<div className="grid3">
+
+<div className="box">📐 Matematica</div>
+<div className="box">📖 Italiano</div>
+<div className="box">🏛 Storia</div>
+
+<div className="box">🔬 Scienze</div>
+<div className="box">🇬🇧 Inglese</div>
+<div className="box">⚡ Fisica</div>
+
+<div className="box">🧪 Chimica</div>
+<div className="box">🌍 Geografia</div>
+<div className="box">🎨 Arte</div>
+
+<div className="box">🎵 Musica</div>
+<div className="box">🤔 Filosofia</div>
+<div className="box">💻 Informatica</div>
+
+<div className="box">⚽ Ed. Fisica</div>
+<div className="box">📜 Latino</div>
+<div className="box">📚 Altra</div>
+
 </div>
-))}
 </>
 )}
 
 </div>
 </div>
 )}
+
+<div style={{
+position:"fixed",
+bottom:"30px",
+right:"25px",
+background:"#007aff",
+width:"60px",
+height:"60px",
+borderRadius:"50%",
+display:"flex",
+alignItems:"center",
+justifyContent:"center",
+color:"white",
+fontSize:"30px"
+}}
+onClick={()=>setShow(true)}
+>
++
+</div>
 
 </div>
 );
