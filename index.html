@@ -14,18 +14,27 @@
   <style>
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
     html,body{height:100%;overflow:hidden}
-    body{background:#fff;font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;overscroll-behavior:none}
+    body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;overscroll-behavior:none;transition:background 0.3s,color 0.3s}
+    body.dark{background:#000;color:#fff}
+    body.light{background:#fff;color:#1C1C1E}
     ::-webkit-scrollbar{display:none}
     input,textarea{-webkit-appearance:none;user-select:text;font-family:inherit}
     *{user-select:none}
     @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
     .tap:active{opacity:0.45}
+    .spin{animation:spin 1s linear infinite}
+    .pulse{animation:pulse 1.5s ease infinite}
   </style>
 </head>
-<body>
+<body class="light">
 <div id="root" style="height:100%"></div>
 <script type="text/babel">
 const {useState,useEffect,useRef,useCallback} = React;
+
+// ── THEME ─────────────────────────────────────────────────────────────────────
+const ThemeCtx = React.createContext({dark:false,toggle:()=>{}});
 
 const MONTHS=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 const MONTHS_S=["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"];
@@ -50,11 +59,7 @@ const MATERIE=[
   {id:"ed_fisica",label:"Ed. Fisica",emoji:"⚽"},{id:"latino",label:"Latino",emoji:"📜"},
   {id:"altra",label:"Altra",emoji:"📚"},
 ];
-const SUGG={
-  commissione:[{label:"Fare la spesa",emoji:"🛒"},{label:"Farmacia",emoji:"💊"},{label:"Pagare bollette",emoji:"💰"},{label:"Posta",emoji:"📮"},{label:"Ritirare pacco",emoji:"📦"},{label:"Banca / ATM",emoji:"🏦"},{label:"Meccanico",emoji:"🔧"},{label:"Shopping",emoji:"🛍️"},{label:"Veterinario",emoji:"🐾"},{label:"Referti medici",emoji:"📋"},{label:"Altro",emoji:"✏️"}],
-  appuntamento:[{label:"Medico",emoji:"👨‍⚕️"},{label:"Dentista",emoji:"🦷"},{label:"Specialista",emoji:"🏥"},{label:"Fisioterapia",emoji:"💆"},{label:"Analisi sangue",emoji:"🩸"},{label:"Oculista",emoji:"👁️"},{label:"Colloquio scuola",emoji:"🏫"},{label:"Riunione",emoji:"💼"},{label:"Colloquio lavoro",emoji:"👔"},{label:"Parrucchiere",emoji:"✂️"},{label:"Altro",emoji:"✏️"}],
-  todo:[{label:"Studiare",emoji:"📚"},{label:"Fare sport",emoji:"🏃"},{label:"Chiamare qualcuno",emoji:"📞"},{label:"Pulire casa",emoji:"🧹"},{label:"Lavanderia",emoji:"👕"},{label:"Cucinare",emoji:"🍳"},{label:"Leggere",emoji:"📖"},{label:"Organizzare",emoji:"🗂️"},{label:"Meditare",emoji:"🧘"},{label:"Progetto",emoji:"💡"},{label:"Altro",emoji:"✏️"}],
-};
+
 const TIPI=["Scritto","Orale","Test","Compito","Presentazione"];
 
 const today=new Date();
@@ -65,9 +70,11 @@ function firstDay(y,m){const d=new Date(y,m,1).getDay();return d===0?6:d-1}
 function addMonths(y,m,delta){let nm=m+delta,ny=y;while(nm>11){nm-=12;ny++;}while(nm<0){nm+=12;ny--;}return{year:ny,month:nm};}
 function daysBetween(s){const[y,m,d]=s.split("-").map(Number);return Math.round((new Date(y,m-1,d)-new Date(today.getFullYear(),today.getMonth(),today.getDate()))/(864e5))}
 
-const SK="ilmioanno_v5";
+const SK="ilmioanno_v6";
 function loadEv(){try{return JSON.parse(localStorage.getItem(SK))||{}}catch{return{}}}
 function saveEv(e){try{localStorage.setItem(SK,JSON.stringify(e))}catch{}}
+function loadPref(){try{return JSON.parse(localStorage.getItem(SK+"_pref"))||{dark:false}}catch{return{dark:false}}}
+function savePref(p){try{localStorage.setItem(SK+"_pref",JSON.stringify(p))}catch{}}
 
 function getAlerts(ev){
   const a=[];
@@ -79,12 +86,12 @@ function getAlerts(ev){
       else if(d===5)a.push({e,day,d,msg:"Ultimi giorni!",u:"high",icon:"⚡"});
       else if(d===2)a.push({e,day,d,msg:"Dopodomani! Rivedi tutto",u:"high",icon:"🔥"});
       else if(d===1)a.push({e,day,d,msg:"DOMANI! Sei pronto?",u:"urgent",icon:"🚨"});
-      else if(d===0)a.push({e,day,d,msg:"OGGI! In bocca al lupo! 🍀",u:"urgent",icon:"🎯"});
+      else if(d===0)a.push({e,day,d,msg:"OGGI! In bocca al lupo!",u:"urgent",icon:"🎯"});
     } else if(e.category==="compleanno"){
       if(d===7)a.push({e,day,d,msg:"Tra una settimana!",u:"low",icon:"🎁"});
       else if(d===3)a.push({e,day,d,msg:"Tra 3 giorni!",u:"medium",icon:"🎂"});
       else if(d===1)a.push({e,day,d,msg:"DOMANI! Non dimenticare!",u:"high",icon:"🎉"});
-      else if(d===0)a.push({e,day,d,msg:"OGGI è il suo compleanno! 🥳",u:"urgent",icon:"🎂"});
+      else if(d===0)a.push({e,day,d,msg:"OGGI è il compleanno! 🥳",u:"urgent",icon:"🎂"});
     } else {
       if(d===3)a.push({e,day,d,msg:"Tra 3 giorni",u:"low",icon:c.emoji});
       else if(d===1)a.push({e,day,d,msg:"DOMANI! Non dimenticare",u:"high",icon:"⏰"});
@@ -95,65 +102,87 @@ function getAlerts(ev){
   return a.sort((a,b)=>o[a.u]-o[b.u]);
 }
 
+// ── AI CALL ───────────────────────────────────────────────────────────────────
+async function callAI(prompt){
+  const res=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      model:"claude-sonnet-4-20250514",
+      max_tokens:1000,
+      messages:[{role:"user",content:prompt}]
+    })
+  });
+  const data=await res.json();
+  return data.content?.[0]?.text||"";
+}
+
+// ── METEO ─────────────────────────────────────────────────────────────────────
+function useMeteo(){
+  const [meteo,setMeteo]=useState(null);
+  useEffect(()=>{
+    if(!navigator.geolocation){return;}
+    navigator.geolocation.getCurrentPosition(async pos=>{
+      try{
+        const {latitude:lat,longitude:lon}=pos.coords;
+        const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`);
+        const d=await r.json();
+        const temp=Math.round(d.current.temperature_2m);
+        const code=d.current.weather_code;
+        const icon=code<=1?"☀️":code<=3?"⛅":code<=48?"🌫️":code<=67?"🌧️":code<=77?"🌨️":code<=82?"🌧️":"⛈️";
+        setMeteo({temp,icon});
+      }catch{}
+    },()=>{},{timeout:5000});
+  },[]);
+  return meteo;
+}
+
 // ── SWIPEABLE CALENDAR ────────────────────────────────────────────────────────
-// Renders 3 months side by side, user drags to reveal prev/next
 function SwipeCalendar({year,month,events,alerts,onDay,onMonthChange}){
   const containerRef=useRef(null);
   const startX=useRef(null);
   const startY=useRef(null);
   const currentX=useRef(0);
   const isDragging=useRef(false);
-  const [offset,setOffset]=useState(0); // px offset while dragging
+  const hasMoved=useRef(false);
+  const [offset,setOffset]=useState(0);
   const [animating,setAnimating]=useState(false);
-  const W=useRef(0);
+  const W=useRef(375);
 
-  useEffect(()=>{
-    if(containerRef.current) W.current=containerRef.current.offsetWidth;
-  },[]);
+  useEffect(()=>{if(containerRef.current)W.current=containerRef.current.offsetWidth;},[]);
 
   const onTouchStart=e=>{
     if(animating)return;
     startX.current=e.touches[0].clientX;
     startY.current=e.touches[0].clientY;
     isDragging.current=false;
+    hasMoved.current=false;
   };
   const onTouchMove=e=>{
     if(startX.current===null)return;
     const dx=e.touches[0].clientX-startX.current;
     const dy=Math.abs(e.touches[0].clientY-startY.current);
     if(!isDragging.current){
-      if(dy>Math.abs(dx))return; // vertical scroll, ignore
+      if(dy>Math.abs(dx)||Math.abs(dx)<8)return;
       isDragging.current=true;
     }
     e.preventDefault();
+    hasMoved.current=Math.abs(dx)>12;
     currentX.current=dx;
     setOffset(dx);
   };
   const onTouchEnd=e=>{
     if(!isDragging.current){startX.current=null;return;}
     const dx=currentX.current;
-    const threshold=W.current*0.3;
+    const threshold=W.current*0.28;
     setAnimating(true);
     if(dx<-threshold){
-      // snap to next month
       setOffset(-W.current);
-      setTimeout(()=>{
-        const n=addMonths(year,month,1);
-        onMonthChange(n.year,n.month);
-        setOffset(0);
-        setAnimating(false);
-      },280);
+      setTimeout(()=>{const n=addMonths(year,month,1);onMonthChange(n.year,n.month);setOffset(0);setAnimating(false);},280);
     } else if(dx>threshold){
-      // snap to prev month
       setOffset(W.current);
-      setTimeout(()=>{
-        const n=addMonths(year,month,-1);
-        onMonthChange(n.year,n.month);
-        setOffset(0);
-        setAnimating(false);
-      },280);
+      setTimeout(()=>{const n=addMonths(year,month,-1);onMonthChange(n.year,n.month);setOffset(0);setAnimating(false);},280);
     } else {
-      // snap back
       setOffset(0);
       setTimeout(()=>setAnimating(false),280);
     }
@@ -162,46 +191,34 @@ function SwipeCalendar({year,month,events,alerts,onDay,onMonthChange}){
     currentX.current=0;
   };
 
+  // Only fire onDay if swipe did NOT move significantly
+  const handleDayClick=useCallback((key)=>{
+    if(!hasMoved.current&&!animating) onDay(key);
+  },[animating]);
+
   const prev=addMonths(year,month,-1);
   const next=addMonths(year,month,1);
 
   return (
-    <div ref={containerRef}
-      style={{overflow:"hidden",position:"relative",touchAction:"pan-y"}}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}>
-      <div style={{
-        display:"flex",
-        width:"300%",
-        transform:`translateX(calc(-33.333% + ${offset}px))`,
-        transition:animating?"transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)":"none",
-        willChange:"transform",
-      }}>
-        <div style={{width:"33.333%",flexShrink:0}}>
-          <MonthGrid year={prev.year} month={prev.month} events={events} alerts={alerts} onDay={onDay}/>
-        </div>
-        <div style={{width:"33.333%",flexShrink:0}}>
-          <MonthGrid year={year} month={month} events={events} alerts={alerts} onDay={onDay}/>
-        </div>
-        <div style={{width:"33.333%",flexShrink:0}}>
-          <MonthGrid year={next.year} month={next.month} events={events} alerts={alerts} onDay={onDay}/>
-        </div>
+    <div ref={containerRef} style={{overflow:"hidden",touchAction:"pan-y"}}
+      onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+      <div style={{display:"flex",width:"300%",transform:`translateX(calc(-33.333% + ${offset}px))`,transition:animating?"transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)":"none",willChange:"transform"}}>
+        <div style={{width:"33.333%",flexShrink:0}}><MonthGrid year={prev.year} month={prev.month} events={events} alerts={alerts} onDay={handleDayClick}/></div>
+        <div style={{width:"33.333%",flexShrink:0}}><MonthGrid year={year} month={month} events={events} alerts={alerts} onDay={handleDayClick}/></div>
+        <div style={{width:"33.333%",flexShrink:0}}><MonthGrid year={next.year} month={next.month} events={events} alerts={alerts} onDay={handleDayClick}/></div>
       </div>
     </div>
   );
 }
 
 function MonthGrid({year,month,events,alerts,onDay}){
+  const {dark}=React.useContext(ThemeCtx);
   const fd=firstDay(year,month),td=daysIn(year,month);
   const getDay=k=>events[k]||[];
   return (
     <div style={{padding:"0 4px"}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:"4px"}}>
-        {DAYS.map((d,i)=>(
-          <div key={i} style={{textAlign:"center",fontSize:"11px",fontWeight:"600",
-            color:i>=5?"#FF9500":"rgba(60,60,67,0.38)",padding:"3px 0",letterSpacing:"0.01em"}}>{d}</div>
-        ))}
+        {DAYS.map((d,i)=><div key={i} style={{textAlign:"center",fontSize:"11px",fontWeight:"600",color:i>=5?"#FF9500":dark?"rgba(255,255,255,0.3)":"rgba(60,60,67,0.38)",padding:"3px 0"}}>{d}</div>)}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",rowGap:"1px"}}>
         {Array.from({length:fd},(_,i)=><div key={`e${i}`}/>)}
@@ -211,28 +228,17 @@ function MonthGrid({year,month,events,alerts,onDay}){
           const isPast=key<todayStr;
           const cats=[...new Set(evs.map(e=>e.category))].slice(0,3);
           const hasAl=alerts.some(a=>a.day===key);
+          const diff=daysBetween(key);
           return (
             <div key={key} onClick={()=>onDay(key)}
-              style={{aspectRatio:"1",display:"flex",flexDirection:"column",alignItems:"center",
-                justifyContent:"center",cursor:"pointer",position:"relative",
-                borderRadius:"50%",transition:"background 0.1s ease",WebkitTapHighlightColor:"transparent"}}
-              onTouchStart={e=>!isT&&(e.currentTarget.style.background="rgba(60,60,67,0.07)")}
-              onTouchEnd={e=>{e.currentTarget.style.background="transparent";onDay(key);}}>
-              {/* Today: red circle */}
+              style={{aspectRatio:"1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",position:"relative",borderRadius:"50%",WebkitTapHighlightColor:"transparent"}}>
               {isT&&<div style={{position:"absolute",inset:"8%",borderRadius:"50%",background:"#FF3B30"}}/>}
-              {/* Alert ring */}
               {hasAl&&!isT&&<div style={{position:"absolute",inset:"8%",borderRadius:"50%",border:"1.5px solid #FF3B30"}}/>}
-              <div style={{fontSize:"15px",fontWeight:isT?"600":"400",
-                color:isT?"#fff":isPast?"rgba(60,60,67,0.22)":isW?"#FF9500":"#1C1C1E",
-                position:"relative",zIndex:1,lineHeight:1,
-                marginBottom:cats.length?"3px":"0"}}>{day}</div>
-              {cats.length>0&&(
-                <div style={{display:"flex",gap:"2px",position:"relative",zIndex:1}}>
-                  {cats.map(cid=>(
-                    <div key={cid} style={{width:"4px",height:"4px",borderRadius:"50%",
-                      background:isT?"rgba(255,255,255,0.85)":getCat(cid).color}}/>
-                  ))}
-                </div>
+              <div style={{fontSize:"15px",fontWeight:isT?"600":"400",color:isT?"#fff":isPast?(dark?"rgba(255,255,255,0.18)":"rgba(60,60,67,0.22)"):isW?"#FF9500":dark?"#fff":"#1C1C1E",position:"relative",zIndex:1,lineHeight:1,marginBottom:cats.length?"3px":"0"}}>{day}</div>
+              {cats.length>0&&<div style={{display:"flex",gap:"2px",position:"relative",zIndex:1}}>{cats.map(cid=><div key={cid} style={{width:"4px",height:"4px",borderRadius:"50%",background:isT?"rgba(255,255,255,0.85)":getCat(cid).color}}/>)}</div>}
+              {/* Countdown badge for verifiche */}
+              {!isT&&diff>0&&diff<=5&&evs.some(e=>e.category==="verifica")&&(
+                <div style={{position:"absolute",top:"-1px",right:"-1px",background:"#FF3B30",borderRadius:"6px",padding:"1px 3px",fontSize:"8px",fontWeight:"700",color:"#fff",zIndex:2,lineHeight:1}}>{diff}g</div>
               )}
             </div>
           );
@@ -242,8 +248,267 @@ function MonthGrid({year,month,events,alerts,onDay}){
   );
 }
 
+// ── AI PANEL: ESERCIZI ────────────────────────────────────────────────────────
+function EserciziPanel({event,onClose}){
+  const {dark}=React.useContext(ThemeCtx);
+  const [livello,setLivello]=useState(3);
+  const [step,setStep]=useState("livello"); // livello | loading | esercizi
+  const [esercizi,setEsercizi]=useState("");
+  const [vis,setVis]=useState(false);
+  useEffect(()=>{requestAnimationFrame(()=>setVis(true))},[]);
+  const close=()=>{setVis(false);setTimeout(onClose,320)};
+  const bg=dark?"#1C1C1E":"#F2F2F7";
+  const card=dark?"#2C2C2E":"#fff";
+  const txt=dark?"#fff":"#1C1C1E";
+  const sub=dark?"rgba(255,255,255,0.4)":"rgba(60,60,67,0.45)";
+
+  const livelli=["😴 Per niente","😟 Poco","😐 Abbastanza","😊 Bene","🔥 Pronto!"];
+
+  const genera=async()=>{
+    setStep("loading");
+    const mat=event.materia?(MATERIE.find(m=>m.id===event.materia)?.label||event.customMateria):"la materia";
+    const arg=event.argomento||"";
+    const tipo=event.tipoVerifica||"verifica";
+    const prompt=`Sei un tutor scolastico italiano. Uno studente ha una ${tipo} di ${mat}${arg?` sull'argomento "${arg}"`:""}. Si sente preparato: ${livelli[livello-1]}.
+
+Crea un piano di ripasso personalizzato con:
+1. 3-4 esercizi pratici specifici per il livello
+2. Suggerimenti su cosa ripassare
+3. Un consiglio motivazionale finale
+
+Sii conciso, pratico e incoraggiante. Usa emoji. Rispondi in italiano.`;
+    try{
+      const r=await callAI(prompt);
+      setEsercizi(r);
+      setStep("esercizi");
+    }catch{
+      setEsercizi("⚠️ Connessione non disponibile. Riprova con internet attivo.");
+      setStep("esercizi");
+    }
+  };
+
+  return (
+    <div onClick={e=>e.target===e.currentTarget&&close()} style={{position:"fixed",inset:0,zIndex:600,background:vis?"rgba(0,0,0,0.5)":"rgba(0,0,0,0)",backdropFilter:"blur(8px)",transition:"background 0.3s",display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
+      <div style={{background:bg,borderRadius:"20px 20px 0 0",maxHeight:"90vh",display:"flex",flexDirection:"column",transform:vis?"translateY(0)":"translateY(100%)",transition:"transform 0.4s cubic-bezier(0.32,0.72,0,1)",paddingBottom:"env(safe-area-inset-bottom,24px)"}}>
+        <div style={{display:"flex",justifyContent:"center",padding:"10px 0 0"}}><div style={{width:"36px",height:"4px",background:dark?"rgba(255,255,255,0.15)":"rgba(60,60,67,0.15)",borderRadius:"2px"}}/></div>
+        <div style={{padding:"14px 20px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+          <div>
+            <div style={{fontSize:"20px",fontWeight:"700",color:txt,letterSpacing:"-0.3px"}}>🧠 Ripasso AI</div>
+            <div style={{fontSize:"13px",color:sub,marginTop:"2px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"240px"}}>{event.title}</div>
+          </div>
+          <button onClick={close} style={{background:dark?"rgba(255,255,255,0.1)":"rgba(60,60,67,0.1)",border:"none",borderRadius:"50%",width:"30px",height:"30px",cursor:"pointer",color:sub,fontSize:"18px",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+        </div>
+
+        <div style={{overflowY:"auto",flex:1,padding:"0 16px 16px"}}>
+          {step==="livello"&&(
+            <div style={{animation:"fadeUp 0.2s ease"}}>
+              <div style={{background:card,borderRadius:"16px",padding:"16px",marginBottom:"16px"}}>
+                <div style={{fontSize:"14px",fontWeight:"600",color:txt,marginBottom:"12px"}}>Come ti senti preparato?</div>
+                <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
+                  {livelli.map((l,i)=>(
+                    <div key={i} onClick={()=>setLivello(i+1)} style={{padding:"12px 16px",borderRadius:"12px",border:`2px solid ${livello===i+1?"#FF3B30":"transparent"}`,background:livello===i+1?"rgba(255,59,48,0.1)":dark?"rgba(255,255,255,0.05)":"rgba(60,60,67,0.04)",cursor:"pointer",display:"flex",alignItems:"center",gap:"12px",transition:"all 0.15s"}}>
+                      <span style={{fontSize:"20px"}}>{l.split(" ")[0]}</span>
+                      <span style={{fontSize:"15px",fontWeight:livello===i+1?"600":"400",color:livello===i+1?"#FF3B30":txt}}>{l.split(" ").slice(1).join(" ")}</span>
+                      {livello===i+1&&<div style={{marginLeft:"auto",width:"20px",height:"20px",borderRadius:"50%",background:"#FF3B30",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:"#fff",fontSize:"12px"}}>✓</span></div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <button onClick={genera} style={{width:"100%",padding:"15px",borderRadius:"14px",border:"none",background:"#FF3B30",color:"#fff",fontFamily:"inherit",fontSize:"16px",fontWeight:"600",cursor:"pointer"}}>
+                Genera piano di ripasso ✨
+              </button>
+            </div>
+          )}
+
+          {step==="loading"&&(
+            <div style={{textAlign:"center",padding:"50px 0"}}>
+              <div style={{fontSize:"40px",marginBottom:"16px"}} className="pulse">🧠</div>
+              <div style={{fontSize:"15px",fontWeight:"600",color:txt,marginBottom:"8px"}}>L'AI sta preparando il tuo piano…</div>
+              <div style={{fontSize:"13px",color:sub}}>Ci vuole qualche secondo</div>
+            </div>
+          )}
+
+          {step==="esercizi"&&(
+            <div style={{animation:"fadeUp 0.2s ease"}}>
+              <div style={{background:card,borderRadius:"16px",padding:"16px",marginBottom:"16px"}}>
+                <div style={{fontSize:"14px",lineHeight:1.6,color:txt,whiteSpace:"pre-wrap"}}>{esercizi}</div>
+              </div>
+              <button onClick={()=>setStep("livello")} style={{width:"100%",padding:"14px",borderRadius:"14px",border:`2px solid ${dark?"rgba(255,255,255,0.1)":"rgba(60,60,67,0.1)"}`,background:"transparent",color:dark?"#fff":"#1C1C1E",fontFamily:"inherit",fontSize:"15px",fontWeight:"600",cursor:"pointer",marginBottom:"8px"}}>
+                Rigenera piano ↺
+              </button>
+              <button onClick={close} style={{width:"100%",padding:"14px",borderRadius:"14px",border:"none",background:"#007AFF",color:"#fff",fontFamily:"inherit",fontSize:"15px",fontWeight:"600",cursor:"pointer"}}>
+                OK, ho capito! 💪
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── AI PANEL: LISTA SPESA ─────────────────────────────────────────────────────
+function ListaSpesaPanel({event,onClose,onSaveNote}){
+  const {dark}=React.useContext(ThemeCtx);
+  const [piatti,setPiatti]=useState("");
+  const [step,setStep]=useState("input");
+  const [lista,setLista]=useState([]);
+  const [vis,setVis]=useState(false);
+  useEffect(()=>{requestAnimationFrame(()=>setVis(true))},[]);
+  const close=()=>{setVis(false);setTimeout(onClose,320)};
+  const bg=dark?"#1C1C1E":"#F2F2F7";
+  const card=dark?"#2C2C2E":"#fff";
+  const txt=dark?"#fff":"#1C1C1E";
+  const sub=dark?"rgba(255,255,255,0.4)":"rgba(60,60,67,0.45)";
+
+  const genera=async()=>{
+    if(!piatti.trim())return;
+    setStep("loading");
+    const prompt=`Sei un assistente per la spesa. L'utente vuole cucinare: "${piatti}".
+
+Crea una lista della spesa completa e intelligente. Per ogni ingrediente metti:
+- quantità tipica per 2-4 persone
+- categoria (🥩 Carne/Pesce, 🥬 Verdure, 🍎 Frutta, 🥛 Latticini, 🥫 Dispensa, 🧁 Altro)
+
+Poi aggiungi 3-5 "potresti aggiungere" come suggerimenti extra utili.
+
+Formato risposta JSON puro, nessun testo fuori:
+{"lista":[{"nome":"...","quantita":"...","categoria":"..."}],"suggerimenti":[{"nome":"...","motivo":"..."}]}`;
+    try{
+      const r=await callAI(prompt);
+      const clean=r.replace(/```json|```/g,"").trim();
+      const parsed=JSON.parse(clean);
+      setLista(parsed);
+      setStep("lista");
+    }catch{
+      setStep("input");
+      alert("Connessione non disponibile. Riprova con internet.");
+    }
+  };
+
+  const [checked,setChecked]=useState({});
+  const toggle=n=>setChecked(p=>({...p,[n]:!p[n]}));
+
+  return (
+    <div onClick={e=>e.target===e.currentTarget&&close()} style={{position:"fixed",inset:0,zIndex:600,background:vis?"rgba(0,0,0,0.5)":"rgba(0,0,0,0)",backdropFilter:"blur(8px)",transition:"background 0.3s",display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
+      <div style={{background:bg,borderRadius:"20px 20px 0 0",maxHeight:"90vh",display:"flex",flexDirection:"column",transform:vis?"translateY(0)":"translateY(100%)",transition:"transform 0.4s cubic-bezier(0.32,0.72,0,1)",paddingBottom:"env(safe-area-inset-bottom,24px)"}}>
+        <div style={{display:"flex",justifyContent:"center",padding:"10px 0 0"}}><div style={{width:"36px",height:"4px",background:dark?"rgba(255,255,255,0.15)":"rgba(60,60,67,0.15)",borderRadius:"2px"}}/></div>
+        <div style={{padding:"14px 20px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+          <div>
+            <div style={{fontSize:"20px",fontWeight:"700",color:txt,letterSpacing:"-0.3px"}}>🛒 Lista della spesa</div>
+            <div style={{fontSize:"13px",color:sub,marginTop:"2px"}}>Generata dall'AI</div>
+          </div>
+          <button onClick={close} style={{background:dark?"rgba(255,255,255,0.1)":"rgba(60,60,67,0.1)",border:"none",borderRadius:"50%",width:"30px",height:"30px",cursor:"pointer",color:sub,fontSize:"18px",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+        </div>
+
+        <div style={{overflowY:"auto",flex:1,padding:"0 16px 16px"}}>
+          {step==="input"&&(
+            <div style={{animation:"fadeUp 0.2s ease"}}>
+              <div style={{background:card,borderRadius:"16px",padding:"16px",marginBottom:"16px"}}>
+                <div style={{fontSize:"14px",fontWeight:"600",color:txt,marginBottom:"10px"}}>Cosa vuoi cucinare? 🍳</div>
+                <textarea value={piatti} onChange={e=>setPiatti(e.target.value)} placeholder="Es. pasta al pomodoro, insalata di pollo, tiramisu…" style={{width:"100%",minHeight:"80px",border:"none",background:dark?"rgba(255,255,255,0.06)":"rgba(60,60,67,0.06)",borderRadius:"12px",padding:"12px",fontSize:"15px",fontFamily:"inherit",color:txt,outline:"none",resize:"none",display:"block",userSelect:"text"}}/>
+              </div>
+              <button onClick={genera} disabled={!piatti.trim()} style={{width:"100%",padding:"15px",borderRadius:"14px",border:"none",background:piatti.trim()?"#34C759":"rgba(60,60,67,0.1)",color:piatti.trim()?"#fff":"rgba(60,60,67,0.3)",fontFamily:"inherit",fontSize:"16px",fontWeight:"600",cursor:piatti.trim()?"pointer":"default"}}>
+                Genera lista 🛒
+              </button>
+            </div>
+          )}
+
+          {step==="loading"&&(
+            <div style={{textAlign:"center",padding:"50px 0"}}>
+              <div style={{fontSize:"40px",marginBottom:"16px"}} className="pulse">🛒</div>
+              <div style={{fontSize:"15px",fontWeight:"600",color:txt,marginBottom:"8px"}}>Preparo la lista…</div>
+              <div style={{fontSize:"13px",color:sub}}>Sto pensando agli ingredienti</div>
+            </div>
+          )}
+
+          {step==="lista"&&lista.lista&&(
+            <div style={{animation:"fadeUp 0.2s ease"}}>
+              {/* Lista principale */}
+              <div style={{background:card,borderRadius:"16px",overflow:"hidden",marginBottom:"12px"}}>
+                <div style={{padding:"12px 16px",borderBottom:`1px solid ${dark?"rgba(255,255,255,0.08)":"rgba(60,60,67,0.08)"}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span style={{fontSize:"13px",fontWeight:"700",color:sub,letterSpacing:"0.04em"}}>DA COMPRARE</span>
+                  <span style={{fontSize:"12px",color:sub}}>{Object.values(checked).filter(Boolean).length}/{lista.lista.length}</span>
+                </div>
+                {lista.lista.map((item,i)=>(
+                  <div key={i} onClick={()=>toggle(item.nome)} style={{padding:"11px 16px",display:"flex",alignItems:"center",gap:"12px",borderBottom:i<lista.lista.length-1?`1px solid ${dark?"rgba(255,255,255,0.06)":"rgba(60,60,67,0.06)"}`:"none",cursor:"pointer",background:checked[item.nome]?(dark?"rgba(255,255,255,0.03)":"rgba(60,60,67,0.02)"):"transparent"}}>
+                    <div style={{width:"22px",height:"22px",borderRadius:"50%",border:`2px solid ${checked[item.nome]?"#34C759":"rgba(60,60,67,0.25)"}`,background:checked[item.nome]?"#34C759":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s"}}>
+                      {checked[item.nome]&&<span style={{color:"#fff",fontSize:"12px",fontWeight:"700"}}>✓</span>}
+                    </div>
+                    <div style={{flex:1}}>
+                      <span style={{fontSize:"15px",fontWeight:"500",color:checked[item.nome]?sub:txt,textDecoration:checked[item.nome]?"line-through":"none"}}>{item.categoria} {item.nome}</span>
+                    </div>
+                    <span style={{fontSize:"12px",color:sub}}>{item.quantita}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Suggerimenti */}
+              {lista.suggerimenti?.length>0&&(
+                <div style={{marginBottom:"12px"}}>
+                  <div style={{fontSize:"11px",fontWeight:"600",color:sub,letterSpacing:"0.05em",marginBottom:"8px",paddingLeft:"4px"}}>POTRESTI AGGIUNGERE</div>
+                  <div style={{background:card,borderRadius:"16px",overflow:"hidden"}}>
+                    {lista.suggerimenti.map((s,i)=>(
+                      <div key={i} onClick={()=>toggle("sugg_"+s.nome)} style={{padding:"11px 16px",display:"flex",alignItems:"center",gap:"12px",borderBottom:i<lista.suggerimenti.length-1?`1px solid ${dark?"rgba(255,255,255,0.06)":"rgba(60,60,67,0.06)"}`:"none",cursor:"pointer"}}>
+                        <div style={{width:"22px",height:"22px",borderRadius:"50%",border:`2px solid ${checked["sugg_"+s.nome]?"#34C759":"rgba(52,199,89,0.4)"}`,background:checked["sugg_"+s.nome]?"#34C759":"rgba(52,199,89,0.08)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                          {checked["sugg_"+s.nome]?<span style={{color:"#fff",fontSize:"12px"}}>✓</span>:<span style={{color:"#34C759",fontSize:"14px"}}>+</span>}
+                        </div>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:"14px",fontWeight:"500",color:txt}}>{s.nome}</div>
+                          <div style={{fontSize:"11px",color:sub,marginTop:"1px"}}>{s.motivo}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{display:"flex",gap:"8px"}}>
+                <button onClick={()=>{setStep("input");setChecked({});}} style={{flex:1,padding:"13px",borderRadius:"14px",border:`2px solid ${dark?"rgba(255,255,255,0.1)":"rgba(60,60,67,0.1)"}`,background:"transparent",color:txt,fontFamily:"inherit",fontSize:"14px",fontWeight:"600",cursor:"pointer"}}>↺ Ricomincia</button>
+                <button onClick={close} style={{flex:1,padding:"13px",borderRadius:"14px",border:"none",background:"#34C759",color:"#fff",fontFamily:"inherit",fontSize:"14px",fontWeight:"600",cursor:"pointer"}}>✓ Fatto!</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── NOTE VOCALI ───────────────────────────────────────────────────────────────
+function VoiceNoteBtn({onNote}){
+  const {dark}=React.useContext(ThemeCtx);
+  const [recording,setRecording]=useState(false);
+  const [supported]=useState(()=>'SpeechRecognition' in window||'webkitSpeechRecognition' in window);
+  const recRef=useRef(null);
+
+  const start=()=>{
+    if(!supported)return alert("Il riconoscimento vocale non è supportato su questo browser.");
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    const rec=new SR();
+    rec.lang="it-IT";
+    rec.continuous=false;
+    rec.interimResults=false;
+    rec.onresult=e=>{const text=e.results[0][0].transcript;onNote(text);};
+    rec.onend=()=>setRecording(false);
+    rec.onerror=()=>setRecording(false);
+    recRef.current=rec;
+    rec.start();
+    setRecording(true);
+  };
+  const stop=()=>{recRef.current?.stop();setRecording(false);};
+
+  if(!supported)return null;
+  return (
+    <button onClick={recording?stop:start} style={{background:recording?"#FF3B30":"rgba(60,60,67,0.08)",border:"none",borderRadius:"20px",padding:"7px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",fontWeight:"600",color:recording?"#fff":dark?"#fff":"#1C1C1E",display:"flex",alignItems:"center",gap:"6px",transition:"all 0.2s"}}>
+      {recording?<><span className="pulse">🔴</span>Stop</>:<><span>🎤</span>Voce</>}
+    </button>
+  );
+}
+
 // ── ALERTS PANEL ──────────────────────────────────────────────────────────────
 function AlertsPanel({alerts,onClose,onGo}){
+  const {dark}=React.useContext(ThemeCtx);
   const [vis,setVis]=useState(false);
   useEffect(()=>{requestAnimationFrame(()=>setVis(true))},[]);
   const close=()=>{setVis(false);setTimeout(onClose,320)};
@@ -285,8 +550,9 @@ function AlertsPanel({alerts,onClose,onGo}){
   );
 }
 
-// ── MODAL ─────────────────────────────────────────────────────────────────────
+// ── MODAL EVENTO ──────────────────────────────────────────────────────────────
 function Modal({dayKey,onClose,onSave,editEvent}){
+  const {dark}=React.useContext(ThemeCtx);
   const [step,setStep]=useState(editEvent?"details":"category");
   const [cat,setCat]=useState(editEvent?.category||null);
   const [materia,setMat]=useState(editEvent?.materia||null);
@@ -304,9 +570,20 @@ function Modal({dayKey,onClose,onSave,editEvent}){
   const close=()=>{setVis(false);setTimeout(onClose,320)};
   const C=CATS.find(c=>c.id===cat);
   const [,km,kd]=dayKey.split("-");
+  const bg=dark?"#1C1C1E":"#F2F2F7";
+  const card=dark?"#2C2C2E":"#fff";
+  const txt=dark?"#fff":"#1C1C1E";
+  const sub=dark?"rgba(255,255,255,0.4)":"rgba(60,60,67,0.45)";
   const steps=cat==="verifica"?["category","materia","argomento","details"]:cat==="compleanno"?["category","compleanno","details"]:["category","suggerimenti","details"];
   const si=steps.indexOf(step);
-  const title=()=>{
+
+  const SUGG_MAP={
+    commissione:[{label:"Fare la spesa",emoji:"🛒"},{label:"Farmacia",emoji:"💊"},{label:"Pagare bollette",emoji:"💰"},{label:"Posta",emoji:"📮"},{label:"Ritirare pacco",emoji:"📦"},{label:"Banca / ATM",emoji:"🏦"},{label:"Meccanico",emoji:"🔧"},{label:"Shopping",emoji:"🛍️"},{label:"Veterinario",emoji:"🐾"},{label:"Referti medici",emoji:"📋"},{label:"Altro",emoji:"✏️"}],
+    appuntamento:[{label:"Medico",emoji:"👨‍⚕️"},{label:"Dentista",emoji:"🦷"},{label:"Specialista",emoji:"🏥"},{label:"Fisioterapia",emoji:"💆"},{label:"Analisi sangue",emoji:"🩸"},{label:"Oculista",emoji:"👁️"},{label:"Colloquio scuola",emoji:"🏫"},{label:"Riunione",emoji:"💼"},{label:"Colloquio lavoro",emoji:"👔"},{label:"Parrucchiere",emoji:"✂️"},{label:"Altro",emoji:"✏️"}],
+    todo:[{label:"Studiare",emoji:"📚"},{label:"Fare sport",emoji:"🏃"},{label:"Chiamare qualcuno",emoji:"📞"},{label:"Pulire casa",emoji:"🧹"},{label:"Lavanderia",emoji:"👕"},{label:"Cucinare",emoji:"🍳"},{label:"Leggere",emoji:"📖"},{label:"Organizzare",emoji:"🗂️"},{label:"Meditare",emoji:"🧘"},{label:"Progetto",emoji:"💡"},{label:"Altro",emoji:"✏️"}],
+  };
+
+  const buildTitle=()=>{
     if(cat==="verifica"){const m=MATERIE.find(x=>x.id===materia);const ml=materia==="altra"?cMat:m?.label;return arg?`${m?.emoji||"📚"} ${tipo||"Verifica"} ${ml} — ${arg}`:`${m?.emoji||"📚"} ${tipo||"Verifica"} di ${ml}`;}
     if(cat==="compleanno")return `🎂 Compleanno di ${name}${age?` (${age} anni)`:""}`;
     return sugg==="Altro"?ctitle:(sugg||"");
@@ -317,88 +594,106 @@ function Modal({dayKey,onClose,onSave,editEvent}){
     if(step==="suggerimenti")return sugg&&(sugg!=="Altro"||ctitle.trim());
     return true;
   };
-  const save=()=>{const t=title();if(!t.trim())return;onSave({id:editEvent?.id||Date.now(),category:cat,title:t,time,note,materia,customMateria:cMat,argomento:arg,tipoVerifica:tipo,personName:name,personAge:age,selectedSugg:sugg,customTitle:ctitle});close();};
+  const save=()=>{const t=buildTitle();if(!t.trim())return;onSave({id:editEvent?.id||Date.now(),category:cat,title:t,time,note,materia,customMateria:cMat,argomento:arg,tipoVerifica:tipo,personName:name,personAge:age,selectedSugg:sugg,customTitle:ctitle});close();};
   const go=s=>setStep(s);
+
   return (
     <div onClick={e=>e.target===e.currentTarget&&close()} style={{position:"fixed",inset:0,zIndex:400,background:vis?"rgba(0,0,0,0.4)":"rgba(0,0,0,0)",backdropFilter:"blur(8px)",transition:"all 0.3s",display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
-      <div style={{background:"#F2F2F7",borderRadius:"20px 20px 0 0",maxHeight:"92vh",overflowY:"auto",paddingBottom:"env(safe-area-inset-bottom,20px)",transform:vis?"translateY(0)":"translateY(100%)",transition:"transform 0.4s cubic-bezier(0.32,0.72,0,1)"}}>
-        <div style={{display:"flex",justifyContent:"center",padding:"10px 0 0"}}><div style={{width:"36px",height:"4px",background:"rgba(60,60,67,0.15)",borderRadius:"2px"}}/></div>
+      <div style={{background:bg,borderRadius:"20px 20px 0 0",maxHeight:"92vh",overflowY:"auto",paddingBottom:"env(safe-area-inset-bottom,20px)",transform:vis?"translateY(0)":"translateY(100%)",transition:"transform 0.4s cubic-bezier(0.32,0.72,0,1)"}}>
+        <div style={{display:"flex",justifyContent:"center",padding:"10px 0 0"}}><div style={{width:"36px",height:"4px",background:dark?"rgba(255,255,255,0.15)":"rgba(60,60,67,0.15)",borderRadius:"2px"}}/></div>
         <div style={{padding:"14px 20px 10px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div>
-            <div style={{fontSize:"12px",color:"rgba(60,60,67,0.4)",fontWeight:"500"}}>{parseInt(kd)} {MONTHS[parseInt(km)-1]}</div>
-            <div style={{fontSize:"20px",fontWeight:"700",color:"#1C1C1E",letterSpacing:"-0.3px",marginTop:"2px"}}>{C?`${C.emoji} ${C.label}`:"Nuovo evento"}</div>
+            <div style={{fontSize:"12px",color:sub}}>{parseInt(kd)} {MONTHS[parseInt(km)-1]}</div>
+            <div style={{fontSize:"20px",fontWeight:"700",color:txt,letterSpacing:"-0.3px",marginTop:"2px"}}>{C?`${C.emoji} ${C.label}`:"Nuovo evento"}</div>
           </div>
-          <button onClick={close} style={{background:"rgba(60,60,67,0.1)",border:"none",borderRadius:"50%",width:"30px",height:"30px",cursor:"pointer",color:"rgba(60,60,67,0.5)",fontSize:"18px",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+          <button onClick={close} style={{background:dark?"rgba(255,255,255,0.1)":"rgba(60,60,67,0.1)",border:"none",borderRadius:"50%",width:"30px",height:"30px",cursor:"pointer",color:sub,fontSize:"18px",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
         </div>
-        {cat&&<div style={{display:"flex",gap:"3px",padding:"0 20px 12px"}}>{steps.map((s,i)=><div key={s} style={{height:"3px",flex:1,borderRadius:"2px",background:i<=si?(C?.color||"#007AFF"):"rgba(60,60,67,0.1)",transition:"background 0.3s"}}/>)}</div>}
+        {cat&&<div style={{display:"flex",gap:"3px",padding:"0 20px 12px"}}>{steps.map((s,i)=><div key={s} style={{height:"3px",flex:1,borderRadius:"2px",background:i<=si?(C?.color||"#007AFF"):dark?"rgba(255,255,255,0.1)":"rgba(60,60,67,0.1)",transition:"background 0.3s"}}/>)}</div>}
+
         <div style={{padding:"0 16px 20px"}}>
           {step==="category"&&<div style={{animation:"fadeUp 0.2s ease"}}>
-            <div style={{fontSize:"13px",color:"rgba(60,60,67,0.4)",marginBottom:"10px",paddingLeft:"4px"}}>Seleziona categoria</div>
+            <div style={{fontSize:"13px",color:sub,marginBottom:"10px",paddingLeft:"4px"}}>Seleziona categoria</div>
             {CATS.map(c=>(
-              <div key={c.id} className="tap" onClick={()=>{setCat(c.id);c.id==="verifica"?go("materia"):c.id==="compleanno"?go("compleanno"):go("suggerimenti")}} style={{background:"#fff",borderRadius:"14px",padding:"14px 16px",marginBottom:"8px",display:"flex",alignItems:"center",gap:"14px",cursor:"pointer"}}>
+              <div key={c.id} className="tap" onClick={()=>{setCat(c.id);c.id==="verifica"?go("materia"):c.id==="compleanno"?go("compleanno"):go("suggerimenti")}} style={{background:card,borderRadius:"14px",padding:"14px 16px",marginBottom:"8px",display:"flex",alignItems:"center",gap:"14px",cursor:"pointer"}}>
                 <div style={{width:"44px",height:"44px",borderRadius:"12px",background:c.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"22px"}}>{c.emoji}</div>
                 <div style={{flex:1}}>
-                  <div style={{fontWeight:"600",fontSize:"16px",color:"#1C1C1E"}}>{c.label}</div>
-                  <div style={{fontSize:"12px",color:"rgba(60,60,67,0.4)",marginTop:"2px"}}>
-                    {c.id==="verifica"&&"Materia + argomento"}{c.id==="compleanno"&&"Nome di chi festeggia"}
-                    {c.id==="commissione"&&"Spesa, farmacia, shopping…"}{c.id==="appuntamento"&&"Medico, dentista…"}
+                  <div style={{fontWeight:"600",fontSize:"16px",color:txt}}>{c.label}</div>
+                  <div style={{fontSize:"12px",color:sub,marginTop:"2px"}}>
+                    {c.id==="verifica"&&"Materia + esercizi AI"}{c.id==="compleanno"&&"Nome di chi festeggia"}
+                    {c.id==="commissione"&&"Lista spesa AI inclusa"}{c.id==="appuntamento"&&"Medico, dentista…"}
                     {c.id==="todo"&&"Cose da non dimenticare"}
                   </div>
                 </div>
-                <span style={{color:"rgba(60,60,67,0.2)",fontSize:"20px"}}>›</span>
+                <span style={{color:sub,fontSize:"20px"}}>›</span>
               </div>
             ))}
           </div>}
+
           {step==="materia"&&<div style={{animation:"fadeUp 0.18s ease"}}>
-            <button onClick={()=>go("category")} style={BK}>‹ Indietro</button>
+            <button onClick={()=>go("category")} style={{...BK,color:"#007AFF"}}>‹ Indietro</button>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"8px"}}>
               {MATERIE.map(m=>(
-                <div key={m.id} className="tap" onClick={()=>{setMat(m.id);go("argomento")}} style={{background:materia===m.id?"#007AFF":"#fff",borderRadius:"12px",padding:"12px 8px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:"5px",transition:"all 0.15s"}}>
+                <div key={m.id} className="tap" onClick={()=>{setMat(m.id);go("argomento")}} style={{background:materia===m.id?"#007AFF":card,borderRadius:"12px",padding:"12px 8px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:"5px",transition:"all 0.15s"}}>
                   <span style={{fontSize:"22px"}}>{m.emoji}</span>
-                  <span style={{fontSize:"11px",textAlign:"center",color:materia===m.id?"#fff":"#1C1C1E",fontWeight:"500",lineHeight:1.2}}>{m.label}</span>
+                  <span style={{fontSize:"11px",textAlign:"center",color:materia===m.id?"#fff":txt,fontWeight:"500",lineHeight:1.2}}>{m.label}</span>
                 </div>
               ))}
             </div>
           </div>}
+
           {step==="argomento"&&<div style={{animation:"fadeUp 0.18s ease"}}>
-            <button onClick={()=>go("materia")} style={BK}>‹ Indietro</button>
-            {materia==="altra"&&<div style={{background:"#fff",borderRadius:"14px",padding:"4px 16px",marginBottom:"10px"}}><label style={LB}>Materia</label><input value={cMat} onChange={e=>setCMat(e.target.value)} placeholder="Es. Diritto…" style={IP} autoFocus/></div>}
-            <div style={{background:"#fff",borderRadius:"14px",padding:"14px 16px",marginBottom:"10px"}}>
-              <label style={LB}>Tipo di verifica</label>
-              <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginTop:"8px"}}>{TIPI.map(t=><button key={t} onClick={()=>setTipo(tipo===t?"":t)} style={{padding:"7px 14px",borderRadius:"20px",fontFamily:"inherit",border:"none",background:tipo===t?"#FF3B30":"rgba(60,60,67,0.08)",color:tipo===t?"#fff":"#1C1C1E",fontSize:"14px",fontWeight:"500",cursor:"pointer",transition:"all 0.15s"}}>{t}</button>)}</div>
+            <button onClick={()=>go("materia")} style={{...BK,color:"#007AFF"}}>‹ Indietro</button>
+            {materia==="altra"&&<div style={{background:card,borderRadius:"14px",padding:"4px 16px",marginBottom:"10px"}}><label style={{...LB,color:sub}}>Materia</label><input value={cMat} onChange={e=>setCMat(e.target.value)} placeholder="Es. Diritto…" style={{...IP,color:txt}} autoFocus/></div>}
+            <div style={{background:card,borderRadius:"14px",padding:"14px 16px",marginBottom:"10px"}}>
+              <label style={{...LB,color:sub}}>Tipo di verifica</label>
+              <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginTop:"8px"}}>{TIPI.map(t=><button key={t} onClick={()=>setTipo(tipo===t?"":t)} style={{padding:"7px 14px",borderRadius:"20px",fontFamily:"inherit",border:"none",background:tipo===t?"#FF3B30":dark?"rgba(255,255,255,0.08)":"rgba(60,60,67,0.08)",color:tipo===t?"#fff":txt,fontSize:"14px",fontWeight:"500",cursor:"pointer",transition:"all 0.15s"}}>{t}</button>)}</div>
             </div>
-            <div style={{background:"#fff",borderRadius:"14px",padding:"4px 16px",marginBottom:"16px"}}><label style={LB}>Argomento <span style={{fontWeight:"400",color:"rgba(60,60,67,0.3)"}}>(opzionale)</span></label><input value={arg} onChange={e=>setArg(e.target.value)} placeholder="Es. Equazioni, Risorgimento…" style={IP}/></div>
-            <button onClick={()=>ok()&&go("details")} style={{...BB,background:ok()?"#FF3B30":"rgba(60,60,67,0.1)",color:ok()?"#fff":"rgba(60,60,67,0.3)"}}>Continua</button>
+            <div style={{background:card,borderRadius:"14px",padding:"4px 16px",marginBottom:"8px"}}>
+              <label style={{...LB,color:sub}}>Argomento <span style={{fontWeight:"400",opacity:0.5}}>(opzionale)</span></label>
+              <input value={arg} onChange={e=>setArg(e.target.value)} placeholder="Es. Equazioni, Risorgimento…" style={{...IP,color:txt}}/>
+            </div>
+            <div style={{display:"flex",gap:"8px",marginBottom:"16px",alignItems:"center"}}>
+              <VoiceNoteBtn onNote={v=>setArg(v)}/>
+              <span style={{fontSize:"12px",color:sub}}>Ditta l'argomento</span>
+            </div>
+            <button onClick={()=>ok()&&go("details")} style={{...BB,background:ok()?"#FF3B30":"rgba(60,60,67,0.1)",color:ok()?"#fff":sub}}>Continua</button>
           </div>}
+
           {step==="compleanno"&&<div style={{animation:"fadeUp 0.18s ease"}}>
-            <button onClick={()=>go("category")} style={BK}>‹ Indietro</button>
+            <button onClick={()=>go("category")} style={{...BK,color:"#007AFF"}}>‹ Indietro</button>
             <div style={{textAlign:"center",fontSize:"50px",margin:"8px 0 14px"}}>🎂</div>
-            <div style={{background:"#fff",borderRadius:"14px",padding:"4px 16px",marginBottom:"10px"}}><label style={LB}>Nome</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="Es. Marco…" style={IP} autoFocus/></div>
-            <div style={{background:"#fff",borderRadius:"14px",padding:"4px 16px",marginBottom:"16px"}}><label style={LB}>Quanti anni? <span style={{fontWeight:"400",color:"rgba(60,60,67,0.3)"}}>(opzionale)</span></label><input value={age} onChange={e=>setAge(e.target.value)} placeholder="Es. 18…" style={IP} type="number"/></div>
-            <button onClick={()=>name.trim()&&go("details")} style={{...BB,background:name.trim()?"#FF9500":"rgba(60,60,67,0.1)",color:name.trim()?"#fff":"rgba(60,60,67,0.3)"}}>Continua</button>
+            <div style={{background:card,borderRadius:"14px",padding:"4px 16px",marginBottom:"10px"}}><label style={{...LB,color:sub}}>Nome</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="Es. Marco…" style={{...IP,color:txt}} autoFocus/></div>
+            <div style={{background:card,borderRadius:"14px",padding:"4px 16px",marginBottom:"16px"}}><label style={{...LB,color:sub}}>Quanti anni?</label><input value={age} onChange={e=>setAge(e.target.value)} placeholder="Es. 18…" style={{...IP,color:txt}} type="number"/></div>
+            <button onClick={()=>name.trim()&&go("details")} style={{...BB,background:name.trim()?"#FF9500":"rgba(60,60,67,0.1)",color:name.trim()?"#fff":sub}}>Continua</button>
           </div>}
+
           {step==="suggerimenti"&&<div style={{animation:"fadeUp 0.18s ease"}}>
-            <button onClick={()=>go("category")} style={BK}>‹ Indietro</button>
-            <div style={{fontSize:"13px",color:"rgba(60,60,67,0.4)",marginBottom:"10px",paddingLeft:"4px"}}>{cat==="commissione"&&"Cosa devi fare?"}{cat==="appuntamento"&&"Che tipo di appuntamento?"}{cat==="todo"&&"Cosa vuoi ricordarti?"}</div>
+            <button onClick={()=>go("category")} style={{...BK,color:"#007AFF"}}>‹ Indietro</button>
+            <div style={{fontSize:"13px",color:sub,marginBottom:"10px",paddingLeft:"4px"}}>{cat==="commissione"&&"Cosa devi fare?"}{cat==="appuntamento"&&"Che tipo di appuntamento?"}{cat==="todo"&&"Cosa vuoi ricordarti?"}</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"10px"}}>
-              {SUGG[cat]?.map(s=>(
-                <div key={s.label} className="tap" onClick={()=>setSugg(s.label)} style={{background:sugg===s.label?(C?.color||"#007AFF"):"#fff",borderRadius:"12px",padding:"12px",cursor:"pointer",display:"flex",alignItems:"center",gap:"10px",transition:"all 0.15s"}}>
+              {SUGG_MAP[cat]?.map(s=>(
+                <div key={s.label} className="tap" onClick={()=>setSugg(s.label)} style={{background:sugg===s.label?(C?.color||"#007AFF"):card,borderRadius:"12px",padding:"12px",cursor:"pointer",display:"flex",alignItems:"center",gap:"10px",transition:"all 0.15s"}}>
                   <span style={{fontSize:"20px"}}>{s.emoji}</span>
-                  <span style={{fontSize:"13px",fontWeight:"500",color:sugg===s.label?"#fff":"#1C1C1E",lineHeight:1.2}}>{s.label}</span>
+                  <span style={{fontSize:"13px",fontWeight:"500",color:sugg===s.label?"#fff":txt,lineHeight:1.2}}>{s.label}</span>
                 </div>
               ))}
             </div>
-            {sugg==="Altro"&&<div style={{background:"#fff",borderRadius:"14px",padding:"4px 16px",marginBottom:"10px"}}><input value={ctitle} onChange={e=>setCtitle(e.target.value)} placeholder="Scrivi cosa devi fare…" style={IP} autoFocus/></div>}
-            <button onClick={()=>ok()&&go("details")} style={{...BB,background:ok()?(C?.color||"#007AFF"):"rgba(60,60,67,0.1)",color:ok()?"#fff":"rgba(60,60,67,0.3)"}}>Continua</button>
+            {sugg==="Altro"&&<div style={{background:card,borderRadius:"14px",padding:"4px 16px",marginBottom:"10px"}}><input value={ctitle} onChange={e=>setCtitle(e.target.value)} placeholder="Scrivi cosa devi fare…" style={{...IP,color:txt}} autoFocus/></div>}
+            <button onClick={()=>ok()&&go("details")} style={{...BB,background:ok()?(C?.color||"#007AFF"):"rgba(60,60,67,0.1)",color:ok()?"#fff":sub}}>Continua</button>
           </div>}
+
           {step==="details"&&<div style={{animation:"fadeUp 0.18s ease"}}>
-            <button onClick={()=>cat==="verifica"?go("argomento"):cat==="compleanno"?go("compleanno"):go("suggerimenti")} style={BK}>‹ Indietro</button>
-            <div style={{background:"#fff",borderRadius:"14px",padding:"14px 16px",marginBottom:"10px",borderLeft:`4px solid ${C?.color||"#007AFF"}`}}>
-              <div style={{fontSize:"11px",color:"rgba(60,60,67,0.35)",fontWeight:"600",marginBottom:"4px",textTransform:"uppercase",letterSpacing:"0.04em"}}>{C?.label}</div>
-              <div style={{fontWeight:"600",fontSize:"15px",color:"#1C1C1E"}}>{title()}</div>
+            <button onClick={()=>cat==="verifica"?go("argomento"):cat==="compleanno"?go("compleanno"):go("suggerimenti")} style={{...BK,color:"#007AFF"}}>‹ Indietro</button>
+            <div style={{background:card,borderRadius:"14px",padding:"14px 16px",marginBottom:"10px",borderLeft:`4px solid ${C?.color||"#007AFF"}`}}>
+              <div style={{fontSize:"11px",color:sub,fontWeight:"600",marginBottom:"4px",textTransform:"uppercase",letterSpacing:"0.04em"}}>{C?.label}</div>
+              <div style={{fontWeight:"600",fontSize:"15px",color:txt}}>{buildTitle()}</div>
             </div>
-            <div style={{background:"#fff",borderRadius:"14px",padding:"4px 16px",marginBottom:"10px"}}><label style={LB}>Orario <span style={{fontWeight:"400",color:"rgba(60,60,67,0.3)"}}>(opzionale)</span></label><input type="time" value={time} onChange={e=>setTime(e.target.value)} style={IP}/></div>
-            <div style={{background:"#fff",borderRadius:"14px",padding:"4px 16px",marginBottom:"16px"}}><label style={LB}>Note <span style={{fontWeight:"400",color:"rgba(60,60,67,0.3)"}}>(opzionale)</span></label><textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Aggiungi dettagli…" style={{...IP,height:"72px",resize:"none",paddingTop:"8px"}}/></div>
+            <div style={{background:card,borderRadius:"14px",padding:"4px 16px",marginBottom:"10px"}}><label style={{...LB,color:sub}}>Orario</label><input type="time" value={time} onChange={e=>setTime(e.target.value)} style={{...IP,color:txt}}/></div>
+            <div style={{background:card,borderRadius:"14px",padding:"4px 16px",marginBottom:"8px"}}><label style={{...LB,color:sub}}>Note</label><textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Aggiungi dettagli…" style={{...IP,color:txt,height:"60px",resize:"none",paddingTop:"8px"}}/></div>
+            <div style={{display:"flex",gap:"8px",marginBottom:"16px",alignItems:"center"}}>
+              <VoiceNoteBtn onNote={v=>setNote(v)}/>
+              <span style={{fontSize:"12px",color:sub}}>Ditta le note</span>
+            </div>
             <button onClick={save} style={{...BB,background:C?.color||"#007AFF"}}>Salva evento</button>
           </div>}
         </div>
@@ -409,22 +704,31 @@ function Modal({dayKey,onClose,onSave,editEvent}){
 
 // ── DAY SHEET ─────────────────────────────────────────────────────────────────
 function DaySheet({dayKey,events,onAdd,onEdit,onDel,onClose}){
+  const {dark}=React.useContext(ThemeCtx);
   const [vis,setVis]=useState(false);
+  const [aiEvent,setAiEvent]=useState(null);
+  const [aiType,setAiType]=useState(null);
   const [,km,kd]=dayKey.split("-");
   const isT=dayKey===todayStr;
+  const diff=daysBetween(dayKey);
   useEffect(()=>{requestAnimationFrame(()=>setVis(true))},[]);
   const close=()=>{setVis(false);setTimeout(onClose,320)};
+  const bg=dark?"#1C1C1E":"#F2F2F7";
+  const card=dark?"#2C2C2E":"#fff";
+  const txt=dark?"#fff":"#1C1C1E";
+  const sub=dark?"rgba(255,255,255,0.4)":"rgba(60,60,67,0.45)";
   return (
+    <>
     <div onClick={e=>e.target===e.currentTarget&&close()} style={{position:"fixed",inset:0,zIndex:300,background:vis?"rgba(0,0,0,0.25)":"rgba(0,0,0,0)",transition:"background 0.3s",display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
-      <div style={{background:"#F2F2F7",borderRadius:"20px 20px 0 0",maxHeight:"70vh",display:"flex",flexDirection:"column",transform:vis?"translateY(0)":"translateY(100%)",transition:"transform 0.4s cubic-bezier(0.32,0.72,0,1)",paddingBottom:"env(safe-area-inset-bottom,16px)"}}>
-        <div style={{display:"flex",justifyContent:"center",padding:"10px 0 0"}}><div style={{width:"36px",height:"4px",background:"rgba(60,60,67,0.15)",borderRadius:"2px"}}/></div>
-        <div style={{padding:"12px 20px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid rgba(60,60,67,0.1)"}}>
+      <div style={{background:bg,borderRadius:"20px 20px 0 0",maxHeight:"75vh",display:"flex",flexDirection:"column",transform:vis?"translateY(0)":"translateY(100%)",transition:"transform 0.4s cubic-bezier(0.32,0.72,0,1)",paddingBottom:"env(safe-area-inset-bottom,16px)"}}>
+        <div style={{display:"flex",justifyContent:"center",padding:"10px 0 0"}}><div style={{width:"36px",height:"4px",background:dark?"rgba(255,255,255,0.15)":"rgba(60,60,67,0.15)",borderRadius:"2px"}}/></div>
+        <div style={{padding:"12px 20px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${dark?"rgba(255,255,255,0.08)":"rgba(60,60,67,0.1)"}`}}>
           <div>
-            <div style={{fontSize:"21px",fontWeight:"700",color:"#1C1C1E",letterSpacing:"-0.4px",display:"flex",alignItems:"center",gap:"8px"}}>
+            <div style={{fontSize:"21px",fontWeight:"700",color:txt,letterSpacing:"-0.4px",display:"flex",alignItems:"center",gap:"8px"}}>
               {parseInt(kd)} {MONTHS[parseInt(km)-1]}
               {isT&&<span style={{fontSize:"12px",background:"#FF3B30",color:"#fff",padding:"2px 10px",borderRadius:"10px",fontWeight:"600"}}>oggi</span>}
             </div>
-            <div style={{fontSize:"13px",color:"rgba(60,60,67,0.4)",marginTop:"2px"}}>{events.length} {events.length===1?"evento":"eventi"}</div>
+            <div style={{fontSize:"13px",color:sub,marginTop:"2px"}}>{events.length} {events.length===1?"evento":"eventi"}</div>
           </div>
           <button onClick={onAdd} style={{background:"#007AFF",color:"#fff",border:"none",borderRadius:"20px",padding:"8px 18px",fontSize:"14px",fontWeight:"600",cursor:"pointer",fontFamily:"inherit"}}>+ Aggiungi</button>
         </div>
@@ -432,22 +736,44 @@ function DaySheet({dayKey,events,onAdd,onEdit,onDel,onClose}){
           {events.length===0?(
             <div style={{textAlign:"center",padding:"32px 0"}}>
               <div style={{fontSize:"38px",marginBottom:"8px"}}>📋</div>
-              <div style={{color:"rgba(60,60,67,0.35)",fontSize:"15px",fontWeight:"500"}}>Nessun evento</div>
-              <div style={{color:"rgba(60,60,67,0.25)",fontSize:"13px",marginTop:"4px"}}>Tocca + Aggiungi</div>
+              <div style={{color:sub,fontSize:"15px",fontWeight:"500"}}>Nessun evento</div>
+              <div style={{color:dark?"rgba(255,255,255,0.2)":"rgba(60,60,67,0.25)",fontSize:"13px",marginTop:"4px"}}>Tocca + Aggiungi</div>
             </div>
           ):(
-            <div style={{background:"#fff",borderRadius:"14px",overflow:"hidden"}}>
+            <div style={{background:card,borderRadius:"14px",overflow:"hidden"}}>
               {events.map((ev,i)=>{
                 const c=getCat(ev.category);
+                const evDiff=daysBetween(dayKey);
+                const showAiBtn=ev.category==="verifica"||(ev.category==="commissione"&&ev.title?.includes("spesa"));
                 return (
-                  <div key={ev.id} style={{padding:"12px 14px",display:"flex",alignItems:"center",gap:"12px",borderBottom:i<events.length-1?"1px solid rgba(60,60,67,0.08)":"none"}}>
-                    <div style={{width:"10px",height:"10px",borderRadius:"50%",background:c.color,flexShrink:0}}/>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:"500",fontSize:"15px",color:"#1C1C1E",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.title}</div>
-                      <div style={{fontSize:"12px",color:"rgba(60,60,67,0.4)",marginTop:"2px"}}>{c.label}{ev.time?` · ${ev.time}`:""}</div>
+                  <div key={ev.id}>
+                    <div style={{padding:"12px 14px",display:"flex",alignItems:"center",gap:"12px",borderBottom:`1px solid ${dark?"rgba(255,255,255,0.06)":"rgba(60,60,67,0.06)"}`}}>
+                      <div style={{width:"10px",height:"10px",borderRadius:"50%",background:c.color,flexShrink:0}}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:"500",fontSize:"15px",color:txt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.title}</div>
+                        <div style={{fontSize:"12px",color:sub,marginTop:"2px",display:"flex",alignItems:"center",gap:"6px"}}>
+                          <span>{c.label}{ev.time?` · ${ev.time}`:""}</span>
+                          {ev.category==="verifica"&&evDiff>0&&<span style={{background:"#FF3B30",color:"#fff",borderRadius:"6px",padding:"1px 5px",fontSize:"10px",fontWeight:"700"}}>-{evDiff}g</span>}
+                        </div>
+                      </div>
+                      <button onClick={()=>onEdit(ev)} style={{background:"none",border:"none",cursor:"pointer",color:sub,fontSize:"15px",padding:"4px"}}>✏️</button>
+                      <button onClick={()=>onDel(ev.id)} style={{background:"none",border:"none",cursor:"pointer",color:dark?"rgba(255,255,255,0.2)":"rgba(60,60,67,0.2)",fontSize:"20px",padding:"4px"}}>×</button>
                     </div>
-                    <button onClick={()=>onEdit(ev)} style={{background:"none",border:"none",cursor:"pointer",color:"rgba(60,60,67,0.3)",fontSize:"15px",padding:"4px"}}>✏️</button>
-                    <button onClick={()=>onDel(ev.id)} style={{background:"none",border:"none",cursor:"pointer",color:"rgba(60,60,67,0.2)",fontSize:"20px",padding:"4px"}}>×</button>
+                    {/* AI buttons */}
+                    {showAiBtn&&(
+                      <div style={{padding:"8px 14px 10px",display:"flex",gap:"8px",borderBottom:i<events.length-1?`1px solid ${dark?"rgba(255,255,255,0.06)":"rgba(60,60,67,0.06)"}`:"none"}}>
+                        {ev.category==="verifica"&&(
+                          <button onClick={()=>{setAiEvent(ev);setAiType("esercizi");}} style={{padding:"6px 12px",borderRadius:"12px",border:"none",background:"rgba(255,59,48,0.1)",color:"#FF3B30",fontSize:"12px",fontWeight:"600",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:"4px"}}>
+                            🧠 Ripasso AI
+                          </button>
+                        )}
+                        {ev.category==="commissione"&&(ev.selectedSugg==="Fare la spesa"||ev.title?.toLowerCase().includes("spesa"))&&(
+                          <button onClick={()=>{setAiEvent(ev);setAiType("spesa");}} style={{padding:"6px 12px",borderRadius:"12px",border:"none",background:"rgba(52,199,89,0.1)",color:"#34C759",fontSize:"12px",fontWeight:"600",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:"4px"}}>
+                            🛒 Lista spesa AI
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -456,11 +782,15 @@ function DaySheet({dayKey,events,onAdd,onEdit,onDel,onClose}){
         </div>
       </div>
     </div>
+    {aiEvent&&aiType==="esercizi"&&<EserciziPanel event={aiEvent} onClose={()=>setAiEvent(null)}/>}
+    {aiEvent&&aiType==="spesa"&&<ListaSpesaPanel event={aiEvent} onClose={()=>setAiEvent(null)}/>}
+    </>
   );
 }
 
 // ── MAIN APP ──────────────────────────────────────────────────────────────────
 function App(){
+  const [pref,setPref]=useState(loadPref);
   const [year,setYear]=useState(today.getFullYear());
   const [month,setMonth]=useState(today.getMonth());
   const [events,setEvents]=useState(loadEv);
@@ -470,7 +800,11 @@ function App(){
   const [view,setView]=useState("month");
   const [fCat,setFCat]=useState(null);
   const [showAl,setShowAl]=useState(false);
+  const meteo=useMeteo();
+  const dark=pref.dark;
 
+  const toggleDark=()=>{const np={...pref,dark:!dark};setPref(np);savePref(np);document.body.className=np.dark?"dark":"light";};
+  useEffect(()=>{document.body.className=dark?"dark":"light";},[dark]);
   useEffect(()=>{saveEv(events)},[events]);
   useEffect(()=>{const a=getAlerts(events);if(a.length>0)setTimeout(()=>setShowAl(true),700);},[]);
 
@@ -479,70 +813,80 @@ function App(){
   const handleSave=ev=>{setEvents(p=>{const d=p[selDay]||[];if(editEv)return{...p,[selDay]:d.map(e=>e.id===ev.id?ev:e)};return{...p,[selDay]:[...d,ev]};});};
   const delEv=(k,id)=>setEvents(p=>({...p,[k]:(p[k]||[]).filter(e=>e.id!==id)}));
 
+  const bg=dark?"#000":"#fff";
+  const bgSub=dark?"#1C1C1E":"#F2F2F7";
+  const txt=dark?"#fff":"#1C1C1E";
+  const sub=dark?"rgba(255,255,255,0.35)":"rgba(60,60,67,0.45)";
+  const border=dark?"rgba(255,255,255,0.08)":"rgba(60,60,67,0.1)";
+  const card=dark?"#1C1C1E":"#F2F2F7";
+
   const totM=Object.entries(events).filter(([k])=>k.startsWith(`${year}-${String(month+1).padStart(2,'0')}`)).flatMap(([,e])=>e).length;
   const allEv=Object.entries(events).flatMap(([day,evs])=>evs.map(e=>({...e,day}))).filter(e=>e.day.startsWith(String(year))).filter(e=>!fCat||e.category===fCat).sort((a,b)=>a.day.localeCompare(b.day));
   const upcoming=Object.entries(events).flatMap(([day,evs])=>evs.map(e=>({...e,day}))).filter(e=>e.day>=todayStr).sort((a,b)=>a.day.localeCompare(b.day)).slice(0,5);
   const wDays=Array.from({length:7},(_,i)=>{const d=new Date(),dow=d.getDay()===0?6:d.getDay()-1,dd=new Date(d);dd.setDate(d.getDate()-dow+i);return dd;});
 
   return (
-    <div style={{fontFamily:"-apple-system,'SF Pro Text','Helvetica Neue',sans-serif",background:"#fff",height:"100vh",maxWidth:"430px",margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+    <ThemeCtx.Provider value={{dark,toggle:toggleDark}}>
+    <div style={{fontFamily:"-apple-system,'SF Pro Text','Helvetica Neue',sans-serif",background:bg,height:"100vh",maxWidth:"430px",margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden",transition:"background 0.3s,color 0.3s"}}>
 
-      {/* HEADER — compact, below notch */}
-      <div style={{background:"rgba(255,255,255,0.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",paddingTop:"env(safe-area-inset-top,44px)",flexShrink:0,borderBottom:"1px solid rgba(60,60,67,0.1)"}}>
+      {/* HEADER */}
+      <div style={{background:dark?"rgba(0,0,0,0.95)":"rgba(255,255,255,0.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",paddingTop:"env(safe-area-inset-top,44px)",flexShrink:0,borderBottom:`1px solid ${border}`}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 16px 6px"}}>
-          <button className="tap" onClick={()=>{const n=addMonths(year,month,-1);setYear(n.year);setMonth(n.month);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:"24px",color:"#007AFF",padding:"2px 8px",lineHeight:1}}>‹</button>
+          <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
+            <button className="tap" onClick={()=>{const n=addMonths(year,month,-1);setYear(n.year);setMonth(n.month);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:"24px",color:"#007AFF",padding:"2px 6px",lineHeight:1}}>‹</button>
+            {/* Meteo */}
+            {meteo&&<div style={{fontSize:"13px",color:sub,display:"flex",alignItems:"center",gap:"3px"}}><span>{meteo.icon}</span><span>{meteo.temp}°</span></div>}
+          </div>
           <button onClick={()=>{setYear(today.getFullYear());setMonth(today.getMonth());}} style={{background:"none",border:"none",cursor:"pointer",textAlign:"center",padding:"2px 8px"}}>
-            <div style={{fontSize:"17px",fontWeight:"700",color:"#1C1C1E",letterSpacing:"-0.3px",lineHeight:1}}>{MONTHS[month]} {year}</div>
-            {totM>0&&<div style={{fontSize:"11px",color:"rgba(60,60,67,0.4)",marginTop:"1px"}}>{totM} eventi</div>}
+            <div style={{fontSize:"17px",fontWeight:"700",color:txt,letterSpacing:"-0.3px",lineHeight:1}}>{MONTHS[month]} {year}</div>
+            {totM>0&&<div style={{fontSize:"11px",color:sub,marginTop:"1px"}}>{totM} eventi</div>}
           </button>
-          <div style={{display:"flex",alignItems:"center"}}>
-            <button className="tap" onClick={()=>setShowAl(true)} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 8px",position:"relative"}}>
-              <span style={{fontSize:"19px"}}>🔔</span>
-              {alerts.length>0&&<div style={{position:"absolute",top:"-2px",right:"4px",minWidth:"15px",height:"15px",background:"#FF3B30",borderRadius:"8px",fontSize:"9px",color:"#fff",fontWeight:"700",display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px",border:"1.5px solid #fff"}}>{alerts.length}</div>}
+          <div style={{display:"flex",alignItems:"center",gap:"2px"}}>
+            <button className="tap" onClick={toggleDark} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 6px",fontSize:"18px"}}>{dark?"☀️":"🌙"}</button>
+            <button className="tap" onClick={()=>setShowAl(true)} style={{background:"none",border:"none",cursor:"pointer",padding:"2px 6px",position:"relative"}}>
+              <span style={{fontSize:"18px"}}>🔔</span>
+              {alerts.length>0&&<div style={{position:"absolute",top:"-2px",right:"2px",minWidth:"15px",height:"15px",background:"#FF3B30",borderRadius:"8px",fontSize:"9px",color:"#fff",fontWeight:"700",display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px",border:`1.5px solid ${bg}`}}>{alerts.length}</div>}
             </button>
-            <button className="tap" onClick={()=>{const n=addMonths(year,month,1);setYear(n.year);setMonth(n.month);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:"24px",color:"#007AFF",padding:"2px 8px",lineHeight:1}}>›</button>
+            <button className="tap" onClick={()=>{const n=addMonths(year,month,1);setYear(n.year);setMonth(n.month);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:"24px",color:"#007AFF",padding:"2px 6px",lineHeight:1}}>›</button>
           </div>
         </div>
         <div style={{display:"flex",padding:"0 16px"}}>
           {[["month","Calendario"],["list","Lista"]].map(([v,l])=>(
-            <button key={v} onClick={()=>setView(v)} style={{flex:1,padding:"6px 0 8px",border:"none",background:"transparent",fontFamily:"inherit",fontSize:"13px",fontWeight:view===v?"600":"400",color:view===v?"#007AFF":"rgba(60,60,67,0.45)",cursor:"pointer",borderBottom:view===v?"2px solid #007AFF":"2px solid transparent",transition:"all 0.2s"}}>{l}</button>
+            <button key={v} onClick={()=>setView(v)} style={{flex:1,padding:"6px 0 8px",border:"none",background:"transparent",fontFamily:"inherit",fontSize:"13px",fontWeight:view===v?"600":"400",color:view===v?"#007AFF":sub,cursor:"pointer",borderBottom:view===v?"2px solid #007AFF":"2px solid transparent",transition:"all 0.2s"}}>{l}</button>
           ))}
         </div>
       </div>
 
       {/* CONTENT */}
       <div style={{flex:1,overflowY:"auto",paddingBottom:"80px"}}>
-
         {view==="month"&&(
           <div>
-            {/* Swipeable grid */}
             <div style={{padding:"8px 8px 4px"}}>
               <SwipeCalendar year={year} month={month} events={events} alerts={alerts}
-                onDay={setSelDay}
-                onMonthChange={(y,m)=>{setYear(y);setMonth(m);}}/>
+                onDay={setSelDay} onMonthChange={(y,m)=>{setYear(y);setMonth(m);}}/>
             </div>
 
-            {/* Prossimi eventi */}
             {upcoming.length>0&&(
               <div style={{padding:"0 12px",marginTop:"8px"}}>
-                <div style={{fontSize:"11px",fontWeight:"600",color:"rgba(60,60,67,0.35)",letterSpacing:"0.06em",marginBottom:"8px",paddingLeft:"4px"}}>PROSSIMI EVENTI</div>
-                <div style={{background:"#F2F2F7",borderRadius:"14px",overflow:"hidden"}}>
+                <div style={{fontSize:"11px",fontWeight:"600",color:sub,letterSpacing:"0.06em",marginBottom:"8px",paddingLeft:"4px"}}>PROSSIMI EVENTI</div>
+                <div style={{background:dark?"#1C1C1E":"#F2F2F7",borderRadius:"14px",overflow:"hidden"}}>
                   {upcoming.map((ev,i)=>{
                     const c=getCat(ev.category),d=daysBetween(ev.day),[,em,ed]=ev.day.split("-");
                     return (
-                      <div key={`${ev.day}-${ev.id}`} className="tap" onClick={()=>setSelDay(ev.day)} style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:"12px",cursor:"pointer",borderBottom:i<upcoming.length-1?"1px solid rgba(60,60,67,0.08)":"none",background:"#fff"}}>
+                      <div key={`${ev.day}-${ev.id}`} className="tap" onClick={()=>setSelDay(ev.day)} style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:"12px",cursor:"pointer",borderBottom:i<upcoming.length-1?`1px solid ${border}`:"none",background:dark?"#2C2C2E":"#fff"}}>
                         <div style={{width:"32px",height:"32px",borderRadius:"8px",background:c.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                           <div style={{fontSize:"13px",fontWeight:"700",color:c.color,lineHeight:1}}>{parseInt(ed)}</div>
                           <div style={{fontSize:"8px",color:c.color,fontWeight:"500"}}>{MONTHS_S[parseInt(em)-1]}</div>
                         </div>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontWeight:"500",fontSize:"14px",color:"#1C1C1E",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.title}</div>
-                          <div style={{fontSize:"11px",color:"rgba(60,60,67,0.4)",marginTop:"1px"}}>
+                          <div style={{fontWeight:"500",fontSize:"14px",color:txt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.title}</div>
+                          <div style={{fontSize:"11px",color:sub,marginTop:"1px",display:"flex",alignItems:"center",gap:"5px"}}>
                             {d===0?<span style={{color:c.color,fontWeight:"600"}}>Oggi</span>:d===1?<span style={{color:"#FF9500",fontWeight:"600"}}>Domani</span>:<span>{c.label}</span>}
                             {ev.time&&` · ${ev.time}`}
+                            {ev.category==="verifica"&&d>0&&d<=15&&<span style={{background:"#FF3B30",color:"#fff",borderRadius:"5px",padding:"1px 5px",fontSize:"10px",fontWeight:"700"}}>-{d}g</span>}
                           </div>
                         </div>
-                        <span style={{color:"rgba(60,60,67,0.2)",fontSize:"14px"}}>›</span>
+                        <span style={{color:sub,fontSize:"14px"}}>›</span>
                       </div>
                     );
                   })}
@@ -550,44 +894,46 @@ function App(){
               </div>
             )}
 
-            {/* Legenda */}
-            <div style={{margin:"10px 12px 0",background:"#F2F2F7",borderRadius:"14px",padding:"12px 14px"}}>
-              <div style={{fontSize:"10px",fontWeight:"600",color:"rgba(60,60,67,0.3)",letterSpacing:"0.06em",marginBottom:"8px"}}>CATEGORIE</div>
+            <div style={{margin:"10px 12px 0",background:dark?"#1C1C1E":"#F2F2F7",borderRadius:"14px",padding:"12px 14px"}}>
+              <div style={{fontSize:"10px",fontWeight:"600",color:sub,letterSpacing:"0.06em",marginBottom:"8px"}}>CATEGORIE</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:"6px 18px"}}>
-                {CATS.map(c=><div key={c.id} style={{display:"flex",alignItems:"center",gap:"5px"}}><div style={{width:"7px",height:"7px",borderRadius:"50%",background:c.color}}/><span style={{fontSize:"12px",color:"rgba(60,60,67,0.55)"}}>{c.label}</span></div>)}
+                {CATS.map(c=><div key={c.id} style={{display:"flex",alignItems:"center",gap:"5px"}}><div style={{width:"7px",height:"7px",borderRadius:"50%",background:c.color}}/><span style={{fontSize:"12px",color:sub}}>{c.label}</span></div>)}
               </div>
             </div>
           </div>
         )}
 
         {view==="list"&&(
-          <div style={{padding:"12px 12px 0"}}>
+          <div style={{padding:"12px"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"12px"}}>
               <button className="tap" onClick={()=>setYear(y=>y-1)} style={{background:"none",border:"none",fontSize:"22px",color:"#007AFF",cursor:"pointer",padding:"4px 10px"}}>‹</button>
-              <span style={{fontSize:"17px",fontWeight:"700",color:"#1C1C1E",letterSpacing:"-0.3px"}}>{year}</span>
+              <span style={{fontSize:"17px",fontWeight:"700",color:txt}}>{year}</span>
               <button className="tap" onClick={()=>setYear(y=>y+1)} style={{background:"none",border:"none",fontSize:"22px",color:"#007AFF",cursor:"pointer",padding:"4px 10px"}}>›</button>
             </div>
             <div style={{display:"flex",gap:"6px",overflowX:"auto",paddingBottom:"4px",marginBottom:"12px"}}>
-              <button onClick={()=>setFCat(null)} style={{padding:"5px 14px",borderRadius:"20px",border:"none",flexShrink:0,background:!fCat?"#007AFF":"#F2F2F7",color:!fCat?"#fff":"rgba(60,60,67,0.5)",fontSize:"13px",fontWeight:"500",cursor:"pointer",fontFamily:"inherit"}}>Tutti</button>
-              {CATS.map(c=><button key={c.id} onClick={()=>setFCat(fCat===c.id?null:c.id)} style={{padding:"5px 12px",borderRadius:"20px",border:"none",flexShrink:0,background:fCat===c.id?c.color:"#F2F2F7",color:fCat===c.id?"#fff":c.color,fontSize:"13px",fontWeight:"500",cursor:"pointer",fontFamily:"inherit"}}>{c.emoji} {c.label}</button>)}
+              <button onClick={()=>setFCat(null)} style={{padding:"5px 14px",borderRadius:"20px",border:"none",flexShrink:0,background:!fCat?"#007AFF":dark?"#2C2C2E":"#F2F2F7",color:!fCat?"#fff":sub,fontSize:"13px",fontWeight:"500",cursor:"pointer",fontFamily:"inherit"}}>Tutti</button>
+              {CATS.map(c=><button key={c.id} onClick={()=>setFCat(fCat===c.id?null:c.id)} style={{padding:"5px 12px",borderRadius:"20px",border:"none",flexShrink:0,background:fCat===c.id?c.color:dark?"#2C2C2E":"#F2F2F7",color:fCat===c.id?"#fff":c.color,fontSize:"13px",fontWeight:"500",cursor:"pointer",fontFamily:"inherit"}}>{c.emoji} {c.label}</button>)}
             </div>
             {allEv.length===0?(
-              <div style={{textAlign:"center",padding:"50px 0"}}><div style={{fontSize:"40px",marginBottom:"10px"}}>📋</div><div style={{color:"rgba(60,60,67,0.35)",fontSize:"15px"}}>Nessun evento</div></div>
+              <div style={{textAlign:"center",padding:"50px 0"}}><div style={{fontSize:"40px",marginBottom:"10px"}}>📋</div><div style={{color:sub,fontSize:"15px"}}>Nessun evento</div></div>
             ):(
-              <div style={{background:"#fff",borderRadius:"14px",overflow:"hidden"}}>
+              <div style={{background:dark?"#1C1C1E":"#fff",borderRadius:"14px",overflow:"hidden"}}>
                 {allEv.map((ev,i)=>{
-                  const c=getCat(ev.category),[,em,ed]=ev.day.split("-");
+                  const c=getCat(ev.category),[,em,ed]=ev.day.split("-"),d=daysBetween(ev.day);
                   return (
-                    <div key={`${ev.day}-${ev.id}`} style={{padding:"11px 14px",display:"flex",alignItems:"center",gap:"12px",borderBottom:i<allEv.length-1?"1px solid rgba(60,60,67,0.08)":"none"}}>
+                    <div key={`${ev.day}-${ev.id}`} style={{padding:"11px 14px",display:"flex",alignItems:"center",gap:"12px",borderBottom:i<allEv.length-1?`1px solid ${border}`:"none"}}>
                       <div style={{width:"32px",height:"32px",borderRadius:"8px",background:c.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                         <div style={{fontSize:"13px",fontWeight:"700",color:c.color,lineHeight:1}}>{parseInt(ed)}</div>
                         <div style={{fontSize:"8px",color:c.color,fontWeight:"500"}}>{MONTHS_S[parseInt(em)-1]}</div>
                       </div>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:"500",fontSize:"14px",color:"#1C1C1E",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.title}</div>
-                        <div style={{fontSize:"11px",color:"rgba(60,60,67,0.4)",marginTop:"1px"}}>{c.label}{ev.time?` · ${ev.time}`:""}</div>
+                        <div style={{fontWeight:"500",fontSize:"14px",color:txt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.title}</div>
+                        <div style={{fontSize:"11px",color:sub,marginTop:"1px",display:"flex",alignItems:"center",gap:"5px"}}>
+                          <span>{c.label}{ev.time?` · ${ev.time}`:""}</span>
+                          {ev.category==="verifica"&&d>0&&d<=15&&<span style={{background:"#FF3B30",color:"#fff",borderRadius:"5px",padding:"1px 5px",fontSize:"10px",fontWeight:"700"}}>-{d}g</span>}
+                        </div>
                       </div>
-                      <button onClick={()=>delEv(ev.day,ev.id)} style={{background:"none",border:"none",cursor:"pointer",color:"rgba(60,60,67,0.2)",fontSize:"20px",padding:"4px"}}>×</button>
+                      <button onClick={()=>delEv(ev.day,ev.id)} style={{background:"none",border:"none",cursor:"pointer",color:sub,fontSize:"20px",padding:"4px"}}>×</button>
                     </div>
                   );
                 })}
@@ -597,17 +943,17 @@ function App(){
         )}
       </div>
 
-      {/* BOTTOM WEEK STRIP */}
-      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:"430px",background:"rgba(255,255,255,0.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:"1px solid rgba(60,60,67,0.1)",padding:"6px 10px env(safe-area-inset-bottom,16px)",zIndex:150}}>
+      {/* BOTTOM WEEK */}
+      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:"430px",background:dark?"rgba(0,0,0,0.95)":"rgba(255,255,255,0.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:`1px solid ${border}`,padding:"6px 10px env(safe-area-inset-bottom,16px)",zIndex:150}}>
         <div style={{display:"flex",justifyContent:"space-between"}}>
           {wDays.map((d,i)=>{
             const key=fmt(d.getFullYear(),d.getMonth(),d.getDate()),evs=getDay(key),isT=key===todayStr,hasAl=alerts.some(a=>a.day===key);
             return (
               <div key={i} className="tap" onClick={()=>setSelDay(key)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"3px 1px",cursor:"pointer",position:"relative"}}>
                 {hasAl&&!isT&&<div style={{position:"absolute",top:"0",right:"4px",width:"5px",height:"5px",borderRadius:"50%",background:"#FF3B30"}}/>}
-                <div style={{fontSize:"10px",fontWeight:"500",color:isT?"#FF3B30":"rgba(60,60,67,0.4)",marginBottom:"3px"}}>{DAYS[i]}</div>
+                <div style={{fontSize:"10px",fontWeight:"500",color:isT?"#FF3B30":sub,marginBottom:"3px"}}>{DAYS[i]}</div>
                 <div style={{width:"30px",height:"30px",borderRadius:"50%",background:isT?"#FF3B30":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <div style={{fontSize:"15px",fontWeight:isT?"700":"400",color:isT?"#fff":i>=5?"#FF9500":"#1C1C1E"}}>{d.getDate()}</div>
+                  <div style={{fontSize:"15px",fontWeight:isT?"700":"400",color:isT?"#fff":i>=5?"#FF9500":txt}}>{d.getDate()}</div>
                 </div>
                 <div style={{width:"4px",height:"4px",borderRadius:"50%",marginTop:"2px",background:evs.length>0?(isT?"rgba(255,255,255,0.8)":getCat(evs[0].category).color):"transparent"}}/>
               </div>
@@ -620,13 +966,14 @@ function App(){
       {selDay&&!showModal&&!showAl&&<DaySheet dayKey={selDay} events={getDay(selDay)} onAdd={()=>{setEditEv(null);setShowModal(true)}} onEdit={ev=>{setEditEv(ev);setShowModal(true)}} onDel={id=>delEv(selDay,id)} onClose={()=>setSelDay(null)}/>}
       {showModal&&selDay&&<Modal dayKey={selDay} onClose={()=>setShowModal(false)} onSave={handleSave} editEvent={editEv}/>}
     </div>
+    </ThemeCtx.Provider>
   );
 }
 
-const BK={background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:"15px",color:"#007AFF",padding:"0 0 14px 0",display:"block"};
-const LB={display:"block",fontSize:"11px",fontWeight:"600",color:"rgba(60,60,67,0.4)",padding:"10px 0 0",textTransform:"uppercase",letterSpacing:"0.05em"};
-const IP={width:"100%",padding:"8px 0 12px",border:"none",fontSize:"16px",fontFamily:"inherit",outline:"none",background:"transparent",color:"#1C1C1E",display:"block"};
-const BB={width:"100%",padding:"15px",borderRadius:"14px",border:"none",fontFamily:"inherit",fontSize:"16px",fontWeight:"600",cursor:"pointer",transition:"all 0.15s",letterSpacing:"-0.2px",color:"#fff"};
+const BK={background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:"15px",padding:"0 0 14px 0",display:"block"};
+const LB={display:"block",fontSize:"11px",fontWeight:"600",padding:"10px 0 0",textTransform:"uppercase",letterSpacing:"0.05em"};
+const IP={width:"100%",padding:"8px 0 12px",border:"none",fontSize:"16px",fontFamily:"inherit",outline:"none",background:"transparent",display:"block"};
+const BB={width:"100%",padding:"15px",borderRadius:"14px",border:"none",fontFamily:"inherit",fontSize:"16px",fontWeight:"600",cursor:"pointer",transition:"all 0.15s",color:"#fff"};
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
