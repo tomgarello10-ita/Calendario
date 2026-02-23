@@ -110,7 +110,7 @@ function saveGeminiKey(k){try{localStorage.setItem(GEMINI_KEY_SK,k)}catch{}}
 async function callAI(prompt){
   const key=getGeminiKey();
   if(!key)throw new Error("NO_KEY");
-  const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,{
+  const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
@@ -274,8 +274,10 @@ function GeminiSetup({onDone,onClose,dark}){
     }catch(e){
       if(e.message==="NO_KEY"||e.message.includes("API_KEY")||e.message.includes("key"))
         setErr("❌ Chiave non valida. Controlla di averla copiata bene.");
+      else if(e.message.includes("fetch")||e.message.includes("network"))
+        setErr("❌ Errore di rete. Controlla la connessione.");
       else
-        setErr("❌ Errore: "+e.message);
+        setErr("❌ "+e.message);
     }
     setTesting(false);
   };
