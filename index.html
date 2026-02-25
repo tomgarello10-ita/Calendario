@@ -33,6 +33,7 @@
 <script type="text/babel">
 const {useState,useEffect,useRef,useCallback} = React;
 
+// ── THEME ─────────────────────────────────────────────────────────────────────
 const ThemeCtx = React.createContext({dark:false,toggle:()=>{}});
 
 const MONTHS=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
@@ -101,31 +102,434 @@ function getAlerts(ev){
   return a.sort((a,b)=>o[a.u]-o[b.u]);
 }
 
-const GEMINI_KEY_SK="ilmioanno_gemini_key";
-function getGeminiKey(){try{return localStorage.getItem(GEMINI_KEY_SK)||"AIzaSyAh8c9zTtFa5_SByMor43FcA2mxhkQ0FiY"}catch{return"AIzaSyAh8c9zTtFa5_SByMor43FcA2mxhkQ0FiY"}}
-function saveGeminiKey(k){try{localStorage.setItem(GEMINI_KEY_SK,k)}catch{}}
+// ── AI CALL (Gemini) ──────────────────────────────────────────────────────────
+// ── SISTEMA RIPASSO OFFLINE ─────────────────────────────────────────────────
+const RIPASSO_DB={
+  matematica:{
+    esercizi_base:[
+      "Risolvi: 2x² - 5x + 3 = 0",
+      "Risolvi il sistema: { 2x + y = 7 / x - y = 2 }",
+      "Calcola l'area di un triangolo con base 8cm e altezza 5cm",
+      "Semplifica la frazione: 36/48",
+      "Risolvi: 3(x - 2) = 2x + 4",
+      "Calcola: (2³ × 4²) ÷ 2⁴",
+      "Trova il MCD e mcm di 12 e 18",
+      "Risolvi la proporzione: 3 : x = 6 : 10"
+    ],
+    esercizi_avanzati:[
+      "Studia il segno di: f(x) = x² - 4x + 3",
+      "Calcola il discriminante e le soluzioni di: x² + 3x - 10 = 0",
+      "Dimostra che la diagonale di un quadrato di lato 'a' è a√2",
+      "Risolvi: |2x - 1| < 5",
+      "Dato un cerchio di raggio 6, calcola area e circonferenza"
+    ],
+    teoria:["Ripassa le formule quadratiche","Studia i teoremi sulle figure piane","Rileggi le proprietà delle potenze"],
+    tips:["Sostituisci sempre per verificare","Disegna prima di calcolare","Controlla il segno del discriminante"]
+  },
+  italiano:{
+    esercizi_base:[
+      "Analizza grammaticalmente: 'Il gatto grigio dorme sul divano morbido'",
+      "Individua soggetto, predicato e complementi in: 'Maria ha regalato un libro alla sua amica'",
+      "Scrivi il contrario di: felice, lento, caldo, grande, chiaro",
+      "Trasforma al passivo: 'Il professore spiega la lezione agli studenti'",
+      "Trova le figure retoriche in: 'Il mare era una lastra di acciaio lucente'",
+      "Dividi in sillabe: straordinario, psicologia, aeroplano, scienza",
+      "Scrivi 3 sinonimi per: bello, camminare, dire, paura"
+    ],
+    esercizi_avanzati:[
+      "Analisi del periodo: 'Sebbene fosse stanco, continuò a lavorare finché non finì il progetto'",
+      "Scrivi un testo argomentativo di 15 righe su: 'I social media fanno più bene o male?'",
+      "Commenta questa metafora: 'La vita è un viaggio senza mappa'",
+      "Trasforma dal discorso diretto all'indiretto: 'Marco disse: Vengo domani alla festa'"
+    ],
+    teoria:["Ripassa le congiunzioni subordinanti","Studia le figure retoriche principali","Rileggi la struttura del testo argomentativo"],
+    tips:["Leggi le frasi ad alta voce","Fai schemi per i periodi complessi","Usa la matita per segnare gli elementi"]
+  },
+  storia:{
+    esercizi_base:[
+      "Metti in ordine cronologico: Rivoluzione Francese, Prima Guerra Mondiale, Rivoluzione Industriale, Caduta dell'Impero Romano",
+      "Scrivi 3 cause della Prima Guerra Mondiale",
+      "Chi era Napoleone Bonaparte? Scrivi 5 informazioni chiave",
+      "In quale anno cadde il Muro di Berlino? E cosa rappresentava?",
+      "Collega: Mussolini → __, Hitler → __, Stalin → __ (fascismo/nazismo/comunismo)",
+      "Quali paesi formavano la Triplice Alleanza nel 1914?",
+      "Quando e dove fu firmata la Dichiarazione d'Indipendenza americana?"
+    ],
+    esercizi_avanzati:[
+      "Confronta la Rivoluzione Francese e quella Americana: somiglianze e differenze",
+      "Spiega il concetto di 'imperialismo' e fai 2 esempi storici",
+      "Analizza le conseguenze del Trattato di Versailles sulla Germania",
+      "Perché scoppiò la Seconda Guerra Mondiale? Elenca le 4 cause principali"
+    ],
+    teoria:["Ripassa le date fondamentali del programma","Studia i personaggi chiave","Rileggi le mappe geografiche storiche"],
+    tips:["Usa una linea del tempo visiva","Collega sempre causa → evento → conseguenza","Impara le date associandole a eventi memorabili"]
+  },
+  scienze:{
+    esercizi_base:[
+      "Descrivi le fasi della mitosi in ordine",
+      "Qual è la differenza tra cellula procariota ed eucariota?",
+      "Completa: La fotosintesi produce ___ e ___ usando ___ e ___",
+      "Elenca i 5 regni degli esseri viventi con un esempio per ciascuno",
+      "Descrivi il ciclo dell'acqua in 4 fasi",
+      "Qual è la funzione di: nucleo, mitocondri, membrana cellulare?",
+      "Differenza tra DNA e RNA: scrivi 3 differenze"
+    ],
+    esercizi_avanzati:[
+      "Spiega la legge di Mendel usando l'esempio dei piselli",
+      "Descrivi il processo di respirazione cellulare aerobica",
+      "Cosa sono gli enzimi? Spiega il loro meccanismo d'azione",
+      "Confronta fotosintesi e respirazione cellulare"
+    ],
+    teoria:["Ripassa i processi cellulari","Studia la classificazione degli organismi","Rileggi i cicli biogeochimici"],
+    tips:["Disegna sempre gli schemi delle cellule","Collega struttura → funzione","Usa flashcard per i termini scientifici"]
+  },
+  inglese:{
+    esercizi_base:[
+      "Metti i verbi al Past Simple: go, eat, write, run, have, see, make, take",
+      "Trasforma al Present Perfect: 'I eat pizza' → 'I ___ already ___ pizza'",
+      "Scrivi le domande per: 'She works in Milan' / 'They went to Paris last year'",
+      "Traduci: 'Se studiassi di più, prenderesti voti migliori'",
+      "Completa con la forma corretta: 'If I ___ (be) you, I ___ (study) more'",
+      "Scrivi 5 frasi usando il Passive Voice al Present Simple",
+      "Trasforma in reported speech: 'Tom said: I will call you tomorrow'"
+    ],
+    esercizi_avanzati:[
+      "Scrivi un'email formale (100 parole) per candidarti a un lavoro",
+      "Analizza il testo e rispondi: 'What is the main idea? What does the author imply?'",
+      "Completa i phrasal verbs: give ___, take ___, look ___, put ___",
+      "Scrivi un paragrafo con: although, however, therefore, in addition"
+    ],
+    teoria:["Ripassa i tempi verbali con esempi","Studia i connettori discorsivi","Rileggi le strutture condizionali"],
+    tips:["Leggi le frasi ad alta voce per la pronuncia","Impara i phrasal verbs in contesto","Guarda video in inglese durante le pause"]
+  },
+  fisica:{
+    esercizi_base:[
+      "Un'auto percorre 150 km in 2 ore. Calcola la velocità media",
+      "Calcola la forza necessaria per accelerare una massa di 5 kg a 3 m/s²",
+      "Un oggetto di 2 kg è a 10 m di altezza. Calcola la sua energia potenziale (g=10 m/s²)",
+      "Applica la legge di Ohm: V=12V, R=4Ω, calcola I",
+      "Converti: 72 km/h in m/s",
+      "Un corpo cade da 20 m di altezza. Dopo quanto tempo tocca terra? (g=10 m/s²)",
+      "Calcola il peso di un oggetto di massa 8 kg"
+    ],
+    esercizi_avanzati:[
+      "Un proiettile viene lanciato a 20 m/s. Calcola spazio e tempo per fermarsi (a=-4 m/s²)",
+      "Due cariche di +3μC e -2μC sono a 0,3 m. Calcola la forza elettrostatica",
+      "Un circuito ha R1=6Ω e R2=3Ω in parallelo con V=12V. Calcola la resistenza totale e la corrente",
+      "Enuncia e applica il principio di conservazione dell'energia in un esempio"
+    ],
+    teoria:["Ripassa le formule con le unità di misura","Studia le leggi fondamentali","Rileggi i grafici spazio-tempo e velocità-tempo"],
+    tips:["Scrivi SEMPRE le unità di misura","Disegna il diagramma delle forze","Controlla che il risultato abbia senso fisico"]
+  },
+  chimica:{
+    esercizi_base:[
+      "Scrivi la formula di: ossido di calcio, cloruro di sodio, acido solforico, idrossido di ferro(III)",
+      "Bilancia: H₂ + O₂ → H₂O",
+      "Bilancia: Fe + HCl → FeCl₂ + H₂",
+      "Quante moli ci sono in 44g di CO₂? (M=44 g/mol)",
+      "Qual è il numero atomico e di massa del Carbonio? Quanti protoni, neutroni ed elettroni ha?",
+      "Indica il gruppo e il periodo di: Na, Cl, Fe, O nella tavola periodica",
+      "Scrivi la configurazione elettronica di: H, C, O, Na"
+    ],
+    esercizi_avanzati:[
+      "Calcola la massa di NaCl necessaria per preparare 500 mL di soluzione 0,5 M",
+      "Bilancia e classifica la reazione: CaCO₃ → CaO + CO₂",
+      "Spiega la differenza tra legame covalente polare e apolare con esempi",
+      "Calcola il pH di una soluzione di HCl 0,01 M"
+    ],
+    teoria:["Ripassa la tavola periodica (gruppi e periodi)","Studia i tipi di legame chimico","Rileggi come bilanciare le equazioni"],
+    tips:["Memorizza i simboli dei primi 20 elementi","Bilancia sempre atomo per atomo","Usa i coefficienti, non i pedici, per bilanciare"]
+  },
+  geografia:{
+    esercizi_base:[
+      "Indica su una mappa: i 5 oceani e i 7 continenti",
+      "Qual è la capitale di: Germania, Brasile, Australia, Giappone, Egitto?",
+      "Descrivi il clima mediterraneo: caratteristiche, zone, vegetazione tipica",
+      "Ordina per popolazione: Cina, India, USA, Indonesia, Brasile",
+      "Cos'è la densità di popolazione? Calcola quella di un paese con 60M abitanti e 300.000 km²",
+      "Nomina i 3 fiumi più lunghi del mondo con i continenti in cui si trovano",
+      "Differenza tra clima e tempo meteorologico: spiega con un esempio"
+    ],
+    esercizi_avanzati:[
+      "Spiega il fenomeno El Niño e le sue conseguenze globali",
+      "Analizza le cause dello spopolamento delle aree rurali italiane",
+      "Confronta la densità demografica di Europa e Africa",
+      "Descrivi la struttura interna della Terra e le sue conseguenze geologiche"
+    ],
+    teoria:["Ripassa le cartine fisiche e politiche","Studia i dati demografici principali","Rileggi i fenomeni climatici"],
+    tips:["Studia SEMPRE con la cartina davanti","Collega geografia a storia ed economia","Usa mnemotecniche per le capitali"]
+  },
+  filosofia:{
+    esercizi_base:[
+      "Chi è Socrate? Spiega il metodo maieutico in 5 righe",
+      "Qual è la differenza tra empirismo e razionalismo? Fai un esempio per ciascuno",
+      "Riassumi la teoria delle Idee di Platone",
+      "Cos'è l'imperativo categorico di Kant? Fai un esempio pratico",
+      "Spiega la dialettica hegeliana (tesi-antitesi-sintesi) con un esempio",
+      "Chi è Aristotele? Elenca 3 sue opere e i temi principali",
+      "Differenza tra etica deontologica e consequenzialista"
+    ],
+    esercizi_avanzati:[
+      "Confronta il pensiero di Platone e Aristotele sull'anima",
+      "Analizza il pensiero di Nietzsche: volontà di potenza e oltreuomo",
+      "Spiega il problema mente-corpo nella filosofia moderna",
+      "Commenta: 'Cogito ergo sum' di Cartesio — cosa significa e perché è importante?"
+    ],
+    teoria:["Ripassa i filosofi per periodo storico","Studia i concetti chiave di ogni corrente","Rileggi le citazioni più famose"],
+    tips:["Collega ogni filosofo al suo contesto storico","Spiega i concetti con esempi concreti","Fai schemi comparativi tra filosofi"]
+  },
+  latino:{
+    esercizi_base:[
+      "Declina al singolare e plurale: 'puella' (1ª decl.) e 'dominus' (2ª decl.)",
+      "Coniuga 'amare' all'indicativo presente attivo (tutte le persone)",
+      "Traduci: 'Puella in horto ambulat et flores videt'",
+      "Indica il caso di ogni parola: 'Magistro discipuli libros dant'",
+      "Trasforma dal singolare al plurale: 'Filius patri epistulam scribit'",
+      "Riconosci le proposizioni in: 'Dico te errare quia multa ignoras'",
+      "Coniuga 'esse' all'indicativo presente e imperfetto"
+    ],
+    esercizi_avanzati:[
+      "Traduci e analizza: 'Caesar, postquam hostes vicit, Romam rediit'",
+      "Individua e spiega l'ablativo assoluto in: 'Sole oriente, milites profecti sunt'",
+      "Trasforma dalla proposizione infinitiva alla completiva con 'ut'",
+      "Coniuga un verbo deponente (es. 'loquor') all'indicativo perfetto"
+    ],
+    teoria:["Ripassa tutte le declinazioni","Studia i tempi e modi verbali","Rileggi la sintassi dei casi"],
+    tips:["Impara le desinenze come una tabella","Analizza prima di tradurre","Cerca i falsi amici con l'italiano"]
+  },
+  informatica:{
+    esercizi_base:[
+      "Converti il numero decimale 42 in binario",
+      "Scrivi uno pseudocodice che calcola la somma dei numeri da 1 a 100",
+      "Cosa fa questo codice? for i in range(5): print(i*2)",
+      "Disegna il diagramma di flusso per: 'Leggi un numero, se è pari stampa PARI altrimenti DISPARI'",
+      "Qual è la differenza tra RAM e ROM?",
+      "Scrivi la query SQL per selezionare tutti gli studenti con voto > 7",
+      "Cos'è un algoritmo? Scrivi quello per fare una tazza di tè"
+    ],
+    esercizi_avanzati:[
+      "Scrivi una funzione ricorsiva per calcolare il fattoriale di n",
+      "Spiega la differenza tra lista e dizionario in Python con esempi",
+      "Analizza la complessità di un algoritmo di ricerca lineare",
+      "Scrivi una JOIN tra due tabelle: Studenti e Voti in SQL"
+    ],
+    teoria:["Ripassa i concetti di base dell'architettura","Studia i costrutti del linguaggio","Rileggi la teoria degli algoritmi"],
+    tips:["Testa sempre il codice step by step","Usa i commenti per capire la logica","Parti da casi semplici e poi complica"]
+  },
+  arte:{
+    esercizi_base:[
+      "Descrivi la Gioconda di Leonardo: tecnica, soggetto, dettagli particolari",
+      "Elenca le caratteristiche principali del Rinascimento italiano",
+      "Chi è Caravaggio? Spiega la tecnica del chiaroscuro con un suo dipinto",
+      "Differenza tra Impressionismo e Post-impressionismo: artisti e caratteristiche",
+      "Analizza La Notte Stellata di Van Gogh: colori, stile, stato d'animo",
+      "Cosa rappresenta il Guernica di Picasso? In quale stile è dipinto?",
+      "Elenca 5 musei famosi nel mondo con le opere più importanti"
+    ],
+    esercizi_avanzati:[
+      "Confronta la tecnica di Raffaello e Michelangelo nella Cappella Sistina",
+      "Spiega come il Cubismo di Picasso rivoluzionò l'arte del '900",
+      "Analizza un'opera astratta: cosa comunica, quali tecniche usa",
+      "Collega l'arte Barocca al suo contesto storico-religioso"
+    ],
+    teoria:["Ripassa i movimenti artistici in ordine cronologico","Studia gli artisti principali per periodo","Rileggi le caratteristiche delle tecniche pittoriche"],
+    tips:["Guarda le immagini in alta risoluzione","Collega ogni opera al suo contesto","Usa le date per fissare i movimenti"]
+  },
+  musica:{
+    esercizi_base:[
+      "Scrivi le note della scala di Do maggiore in ordine",
+      "Qual è il valore di: semibreve, minima, semiminima, croma?",
+      "Indica il tempo di: Allegro, Andante, Largo, Presto",
+      "Chi è Bach? Elenca 3 sue opere e il loro genere musicale",
+      "Differenza tra musica barocca e classica: period, stile, compositori",
+      "Cos'è una sonata? E una sinfonia? Quanti movimenti hanno?",
+      "Elenca gli strumenti dell'orchestra divisi per famiglia"
+    ],
+    esercizi_avanzati:[
+      "Analizza la struttura di una fuga bachiana",
+      "Confronta lo stile di Mozart e Beethoven con esempi di opere",
+      "Spiega l'evoluzione dalla tonalità all'atonalità nel '900",
+      "Descrivi le caratteristiche del Romanticismo musicale"
+    ],
+    teoria:["Ripassa le note e i valori ritmici","Studia i periodi storici della musica","Rileggi i generi musicali principali"],
+    tips:["Ascolta le opere mentre studi","Batti il ritmo per memorizzare","Collega i compositori alla loro epoca"]
+  },
+  ed_fisica:{
+    esercizi_base:[
+      "Elenca e spiega le 5 capacità motorie fondamentali",
+      "Quante persone giocano in una squadra di pallavolo? E di calcio? E di basket?",
+      "Cos'è il VO₂max? Come si misura e cosa indica?",
+      "Spiega la differenza tra sport aerobico e anaerobico con 2 esempi ciascuno",
+      "Descrivi le fasi di un corretto riscaldamento prima dell'attività fisica",
+      "Cosa sono le fibre muscolari lente e veloci? Quando vengono usate?",
+      "Elenca i principi dell'allenamento sportivo (almeno 4)"
+    ],
+    esercizi_avanzati:[
+      "Spiega il principio di supercompensazione nell'allenamento",
+      "Analizza l'importanza dell'alimentazione per uno sportivo",
+      "Descrivi le regole complete di uno sport a scelta",
+      "Cos'è il doping? Spiega effetti fisici e rischi per la salute"
+    ],
+    teoria:["Ripassa la fisiologia dell'esercizio","Studia le regole degli sport principali","Rileggi i principi dell'allenamento"],
+    tips:["Collega sempre teoria e pratica","Usa schemi corporei per anatomia","Memorizza le regole con esempi di gioco"]
+  },
+  altra:{
+    esercizi_base:[
+      "Scrivi le 5 definizioni più importanti dell'argomento",
+      "Elenca i 5 concetti chiave della materia e spiegali",
+      "Crea 5 domande che potrebbe fare il professore e rispondici",
+      "Spiega l'argomento come se dovessi insegnarlo a un compagno",
+      "Scrivi un riassunto di 10 righe del capitolo principale",
+      "Collega l'argomento a qualcosa che conosci già nella vita reale",
+      "Crea una mappa concettuale con i collegamenti tra i temi"
+    ],
+    esercizi_avanzati:[
+      "Analizza i pro e contro dell'argomento studiato",
+      "Cerca un esempio pratico per ogni concetto teorico",
+      "Scrivi 3 domande aperte con risposte complete",
+      "Confronta due aspetti diversi dell'argomento"
+    ],
+    teoria:["Ripassa le definizioni fondamentali","Studia gli esempi principali","Rileggi le parti sottolineate"],
+    tips:["Studia in blocchi da 25 minuti","Fai pause attive ogni ora","Spiega ad alta voce per fissare i concetti"]
+  }
+};
 
-async function callAI(prompt){
-  const key=getGeminiKey();
-  if(!key)throw new Error("NO_KEY");
-  let res;
-  try{
-    res=await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${key}`,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
-    });
-  }catch(fetchErr){
-    throw new Error("RETE: "+fetchErr.message);
+const MOTIVAZIONI_PER_LIVELLO=[
+  ["😴","Partiamo dalle basi! Ogni esperto era un principiante. Anche 30 minuti oggi fanno la differenza. Ce la fai! 💪"],
+  ["😟","Hai già qualcosa su cui costruire! Concentrati sui punti deboli e vedrai miglioramenti rapidi. Forza! 🚀"],
+  ["😐","Sei a metà strada, ottimo! Un po' di ripasso mirato e sarai pronto. Continua così! ⭐"],
+  ["😊","Quasi pronto! Ripassi veloci e riposo sono tutto quello che ti serve ora. Ottimo lavoro! 🎯"],
+  ["🔥","Sei già preparato! Fai una revisione rapida, rilassati e dai il massimo domani. Sei una bomba! 🏆"]
+];
+
+function generaRipassoOffline(materia, argomento, tipo, livello){
+  const db=RIPASSO_DB[materia]||RIPASSO_DB.altra;
+  const [emoji, motivazione]=MOTIVAZIONI_PER_LIVELLO[livello-1];
+  const mat=MATERIE.find(m=>m.id===materia);
+  const matLabel=materia==="altra"?argomento:(mat?.label||"materia");
+  const argTxt=argomento?` — "${argomento}"`:"";
+
+  // Scegli gli esercizi in base al livello
+  // Livello 1-2: esercizi base (più facili, con teoria prima)
+  // Livello 3: metà base metà avanzati
+  // Livello 4-5: esercizi avanzati (sfidanti)
+  let pool=[];
+  if(livello<=2){
+    pool=[...db.esercizi_base];
+  } else if(livello===3){
+    pool=[...db.esercizi_base.slice(0,3),...(db.esercizi_avanzati||[]).slice(0,2)];
+  } else {
+    pool=[...(db.esercizi_avanzati||db.esercizi_base),...db.esercizi_base.slice(0,2)];
   }
-  const data=await res.json();
-  if(!res.ok){
-    const msg=data?.error?.message||("HTTP "+res.status);
-    throw new Error("GEMINI: "+msg);
+  // Mescola un po' per variare
+  pool.sort(()=>Math.random()-0.5);
+  const numEsercizi=livello<=2?5:livello===3?4:4;
+  const esercizi=pool.slice(0,numEsercizi);
+  const teoria=db.teoria.slice(0,livello<=2?3:1);
+  const tips=db.tips.slice(0,2);
+
+  let piano=`${emoji} Ripasso: ${tipo||"Verifica"} di ${matLabel}${argTxt}\n`;
+  piano+=`${"─".repeat(35)}\n\n`;
+
+  if(livello<=2){
+    piano+=`📚 PRIMA RIPASSA LA TEORIA\n`;
+    teoria.forEach(t=>piano+=`• ${t}\n`);
+    piano+=`\n`;
   }
-  return data.candidates?.[0]?.content?.parts?.[0]?.text||"";
+
+  piano+=`✏️ ESERCIZI DA SVOLGERE\n\n`;
+  esercizi.forEach((e,i)=>{
+    piano+=`${i+1}. ${e}\n\n`;
+  });
+
+  if(argomento){
+    piano+=`🎯 FOCUS SU: "${argomento}"\n`;
+    piano+=`• Rileggi i tuoi appunti specifici su questo tema\n`;
+    if(tipo==="Orale")piano+=`• Prova a spiegarlo ad alta voce senza guardare\n`;
+    if(tipo==="Scritto"||tipo==="Test")piano+=`• Riscrivi le formule/regole principali a memoria\n`;
+    piano+=`• Fai 2 esempi pratici sull'argomento\n`;
+    piano+=`\n`;
+  }
+
+  piano+=`💡 CONSIGLI UTILI\n`;
+  tips.forEach(t=>piano+=`• ${t}\n`);
+  piano+=`\n${motivazione}`;
+  return piano;
 }
 
+function generaListaSpesaOffline(piatti){
+  const items=piatti.toLowerCase();
+  const lista=[];
+  const suggerimenti=[];
+
+  if(items.includes("pasta")||items.includes("spaghetti")||items.includes("penne")){
+    lista.push({nome:"Pasta",quantita:"500g",categoria:"🥫"});
+    lista.push({nome:"Pomodori pelati",quantita:"400g",categoria:"🥫"});
+    lista.push({nome:"Olio d'oliva",quantita:"q.b.",categoria:"🥫"});
+    lista.push({nome:"Aglio",quantita:"2 spicchi",categoria:"🥬"});
+    suggerimenti.push({nome:"Parmigiano grattugiato",motivo:"Per condire la pasta"});
+  }
+  if(items.includes("pollo")){
+    lista.push({nome:"Pollo",quantita:"600g",categoria:"🥩"});
+    lista.push({nome:"Rosmarino",quantita:"1 rametto",categoria:"🥬"});
+    lista.push({nome:"Limone",quantita:"1",categoria:"🍎"});
+    suggerimenti.push({nome:"Patate",motivo:"Ottimo contorno al forno"});
+  }
+  if(items.includes("insalata")||items.includes("verdure")){
+    lista.push({nome:"Insalata mista",quantita:"200g",categoria:"🥬"});
+    lista.push({nome:"Pomodori",quantita:"3",categoria:"🥬"});
+    lista.push({nome:"Cetrioli",quantita:"1",categoria:"🥬"});
+    suggerimenti.push({nome:"Olive",motivo:"Per arricchire l'insalata"});
+  }
+  if(items.includes("riso")||items.includes("risotto")){
+    lista.push({nome:"Riso",quantita:"300g",categoria:"🥫"});
+    lista.push({nome:"Cipolla",quantita:"1",categoria:"🥬"});
+    lista.push({nome:"Brodo vegetale",quantita:"1L",categoria:"🥫"});
+    lista.push({nome:"Burro",quantita:"50g",categoria:"🥛"});
+    suggerimenti.push({nome:"Parmigiano",motivo:"Indispensabile per il risotto"});
+  }
+  if(items.includes("pizza")){
+    lista.push({nome:"Farina 00",quantita:"500g",categoria:"🥫"});
+    lista.push({nome:"Lievito di birra",quantita:"25g",categoria:"🥫"});
+    lista.push({nome:"Mozzarella",quantita:"250g",categoria:"🥛"});
+    lista.push({nome:"Pomodori pelati",quantita:"400g",categoria:"🥫"});
+    suggerimenti.push({nome:"Basilico fresco",motivo:"Per la pizza margherita"});
+  }
+  if(items.includes("tiramisu")||items.includes("tiramisù")){
+    lista.push({nome:"Mascarpone",quantita:"250g",categoria:"🥛"});
+    lista.push({nome:"Savoiardi",quantita:"200g",categoria:"🧁"});
+    lista.push({nome:"Uova",quantita:"3",categoria:"🥛"});
+    lista.push({nome:"Caffè",quantita:"200ml",categoria:"🥫"});
+    lista.push({nome:"Cacao amaro",quantita:"2 cucchiai",categoria:"🧁"});
+  }
+  if(items.includes("carne")||items.includes("bistecca")||items.includes("hamburger")){
+    lista.push({nome:"Carne macinata/bistecca",quantita:"500g",categoria:"🥩"});
+    lista.push({nome:"Cipolla",quantita:"1",categoria:"🥬"});
+    lista.push({nome:"Olio",quantita:"q.b.",categoria:"🥫"});
+    suggerimenti.push({nome:"Pane",motivo:"Per accompagnare la carne"});
+  }
+  if(items.includes("minestra")||items.includes("zuppa")||items.includes("minestrone")){
+    lista.push({nome:"Verdure miste",quantita:"500g",categoria:"🥬"});
+    lista.push({nome:"Legumi misti",quantita:"200g",categoria:"🥫"});
+    lista.push({nome:"Brodo",quantita:"1L",categoria:"🥫"});
+    suggerimenti.push({nome:"Pane tostato",motivo:"Ottimo con la zuppa"});
+  }
+
+  // Sempre aggiungi base
+  if(lista.length===0){
+    lista.push({nome:"Olio d'oliva",quantita:"q.b.",categoria:"🥫"});
+    lista.push({nome:"Sale e pepe",quantita:"q.b.",categoria:"🥫"});
+    lista.push({nome:"Ingredienti principali del piatto",quantita:"500g",categoria:"🥩"});
+    lista.push({nome:"Verdure di stagione",quantita:"300g",categoria:"🥬"});
+  }
+  // Suggerimenti generali
+  suggerimenti.push({nome:"Acqua minerale",motivo:"Sempre utile in casa"});
+  suggerimenti.push({nome:"Pane fresco",motivo:"Per accompagnare il pasto"});
+
+  return {lista,suggerimenti};
+}
+
+// ── METEO ─────────────────────────────────────────────────────────────────────
 function useMeteo(){
   const [meteo,setMeteo]=useState(null);
   useEffect(()=>{
@@ -145,6 +549,7 @@ function useMeteo(){
   return meteo;
 }
 
+// ── SWIPEABLE CALENDAR ────────────────────────────────────────────────────────
 function SwipeCalendar({year,month,events,alerts,onDay,onMonthChange}){
   const containerRef=useRef(null);
   const startX=useRef(null);
@@ -198,6 +603,7 @@ function SwipeCalendar({year,month,events,alerts,onDay,onMonthChange}){
     currentX.current=0;
   };
 
+  // Only fire onDay if swipe did NOT move significantly
   const handleDayClick=useCallback((key)=>{
     if(!hasMoved.current&&!animating) onDay(key);
   },[animating]);
@@ -242,6 +648,7 @@ function MonthGrid({year,month,events,alerts,onDay}){
               {hasAl&&!isT&&<div style={{position:"absolute",inset:"8%",borderRadius:"50%",border:"1.5px solid #FF3B30"}}/>}
               <div style={{fontSize:"15px",fontWeight:isT?"600":"400",color:isT?"#fff":isPast?(dark?"rgba(255,255,255,0.18)":"rgba(60,60,67,0.22)"):isW?"#FF9500":dark?"#fff":"#1C1C1E",position:"relative",zIndex:1,lineHeight:1,marginBottom:cats.length?"3px":"0"}}>{day}</div>
               {cats.length>0&&<div style={{display:"flex",gap:"2px",position:"relative",zIndex:1}}>{cats.map(cid=><div key={cid} style={{width:"4px",height:"4px",borderRadius:"50%",background:isT?"rgba(255,255,255,0.85)":getCat(cid).color}}/>)}</div>}
+              {/* Countdown badge for verifiche */}
               {!isT&&diff>0&&diff<=5&&evs.some(e=>e.category==="verifica")&&(
                 <div style={{position:"absolute",top:"-1px",right:"-1px",background:"#FF3B30",borderRadius:"6px",padding:"1px 3px",fontSize:"8px",fontWeight:"700",color:"#fff",zIndex:2,lineHeight:1}}>{diff}g</div>
               )}
@@ -253,13 +660,16 @@ function MonthGrid({year,month,events,alerts,onDay}){
   );
 }
 
+// ── GEMINI KEY SETUP ──────────────────────────────────────────────────────────
 function GeminiSetup({onDone,onClose,dark}){
   const [key,setKey]=useState(getGeminiKey());
   const [testing,setTesting]=useState(false);
   const [err,setErr]=useState("");
+  const bg=dark?"#1C1C1E":"#F2F2F7";
   const card=dark?"#2C2C2E":"#fff";
   const txt=dark?"#fff":"#1C1C1E";
   const sub=dark?"rgba(255,255,255,0.4)":"rgba(60,60,67,0.45)";
+
   const test=async()=>{
     if(!key.trim())return;
     setTesting(true);setErr("");
@@ -268,34 +678,505 @@ function GeminiSetup({onDone,onClose,dark}){
       saveGeminiKey(key.trim());
       onDone();
     }catch(e){
-      if(e.message==="NO_KEY")setErr("❌ Inserisci la chiave prima.");
-      else if(e.message.startsWith("RETE:"))setErr("❌ Errore di rete.");
-      else if(e.message.startsWith("GEMINI:"))setErr("❌ "+e.message.replace("GEMINI: ",""));
-      else setErr("❌ "+e.message);
+      if(e.message==="NO_KEY")
+        setErr("❌ Inserisci la chiave prima.");
+      else if(e.message.startsWith("RETE:"))
+        setErr("❌ Errore di rete — controlla la connessione internet.");
+      else if(e.message.startsWith("GEMINI:"))
+        setErr("❌ "+e.message.replace("GEMINI: ",""));
+      else
+        setErr("❌ "+e.message);
     }
     setTesting(false);
   };
+
   return (
     <div style={{padding:"0 16px 16px"}}>
       <div style={{background:card,borderRadius:"16px",padding:"16px",marginBottom:"14px"}}>
         <div style={{fontSize:"15px",fontWeight:"700",color:txt,marginBottom:"6px"}}>🔑 Configura Gemini AI</div>
-        <input value={key} onChange={e=>setKey(e.target.value)} placeholder="AIzaSy..."
-          style={{width:"100%",padding:"12px 14px",border:`1.5px solid ${err?"#FF3B30":dark?"rgba(255,255,255,0.1)":"rgba(60,60,67,0.15)"}`,borderRadius:"12px",fontSize:"14px",fontFamily:"monospace",color:txt,background:dark?"rgba(255,255,255,0.05)":"#fff",outline:"none",display:"block",userSelect:"text"}}/>
+        <div style={{fontSize:"13px",color:sub,lineHeight:1.5,marginBottom:"14px"}}>
+          Per usare il Ripasso AI e la Lista Spesa ti serve una chiave gratuita di Google Gemini.
+        </div>
+        <div style={{background:dark?"rgba(0,122,255,0.15)":"rgba(0,122,255,0.08)",borderRadius:"12px",padding:"12px",marginBottom:"14px"}}>
+          <div style={{fontSize:"13px",fontWeight:"600",color:"#007AFF",marginBottom:"6px"}}>Come ottenerla (2 min):</div>
+          <div style={{fontSize:"13px",color:txt,lineHeight:1.7}}>
+            1. Vai su <span style={{fontWeight:"600"}}>aistudio.google.com</span>{"\n"}
+            2. Accedi con Google{"\n"}
+            3. Clicca <span style={{fontWeight:"600"}}>"Get API Key"</span> → <span style={{fontWeight:"600"}}>"Create API key"</span>{"\n"}
+            4. Copia la chiave e incollala qui sotto
+          </div>
+        </div>
+        <input
+          value={key}
+          onChange={e=>setKey(e.target.value)}
+          placeholder="AIzaSy..."
+          style={{width:"100%",padding:"12px 14px",border:`1.5px solid ${err?"#FF3B30":dark?"rgba(255,255,255,0.1)":"rgba(60,60,67,0.15)"}`,borderRadius:"12px",fontSize:"14px",fontFamily:"monospace",color:txt,background:dark?"rgba(255,255,255,0.05)":"#fff",outline:"none",display:"block",userSelect:"text"}}
+        />
         {err&&<div style={{fontSize:"12px",color:"#FF3B30",marginTop:"8px"}}>{err}</div>}
       </div>
-      <button onClick={test} disabled={!key.trim()||testing} style={{width:"100%",padding:"14px",borderRadius:"14px",border:"none",background:key.trim()?"#007AFF":"rgba(60,60,67,0.1)",color:key.trim()?"#fff":"rgba(60,60,67,0.3)",fontFamily:"inherit",fontSize:"15px",fontWeight:"600",cursor:"pointer",marginBottom:"8px"}}>
-        {testing?"⏳ Verifico…":"Salva e continua →"}
+      <button onClick={test} disabled={!key.trim()||testing} style={{width:"100%",padding:"14px",borderRadius:"14px",border:"none",background:key.trim()?"#007AFF":"rgba(60,60,67,0.1)",color:key.trim()?"#fff":"rgba(60,60,67,0.3)",fontFamily:"inherit",fontSize:"15px",fontWeight:"600",cursor:key.trim()?"pointer":"default",marginBottom:"8px",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px"}}>
+        {testing?<><span className="pulse">⏳</span>Verifico la chiave…</>:"Salva e continua →"}
       </button>
       <button onClick={onClose} style={{width:"100%",padding:"12px",borderRadius:"14px",border:"none",background:"transparent",color:sub,fontFamily:"inherit",fontSize:"14px",cursor:"pointer"}}>Annulla</button>
     </div>
   );
 }
 
+// ── AI PANEL: ESERCIZI ────────────────────────────────────────────────────────
+// ── QUIZ PER MATERIA (domande vere a risposta multipla) ───────────────────────
+const QUIZ_DB={
+  matematica:[
+    // FACILE (lv:1)
+    {d:"Quanto fa 7 × 8?", r:["56","54","64","48"], c:"56", lv:1},
+    {d:"Quanto fa 15% di 200?", r:["30","25","20","35"], c:"30", lv:1},
+    {d:"Qual è la radice quadrata di 144?", r:["12","11","13","14"], c:"12", lv:1},
+    {d:"Risolvi: x + 5 = 12. Quanto vale x?", r:["7","8","5","6"], c:"7", lv:1},
+    {d:"Quanto fa 2³?", r:["8","6","9","4"], c:"8", lv:1},
+    {d:"Qual è il perimetro di un quadrato di lato 5cm?", r:["20cm","25cm","15cm","10cm"], c:"20cm", lv:1},
+    {d:"Quanto fa 3/4 + 1/4?", r:["1","1/2","3/8","4/8"], c:"1", lv:1},
+    {d:"Qual è il MCD di 12 e 18?", r:["6","3","9","12"], c:"6", lv:1},
+    {d:"Quanto fa 0,5 × 0,4?", r:["0,2","0,02","2","0,9"], c:"0,2", lv:1},
+    {d:"In un triangolo rettangolo i cateti sono 3 e 4. L'ipotenusa è?", r:["5","7","6","4,5"], c:"5", lv:1},
+    {d:"Quanto fa (−3) × (−4)?", r:["12","−12","7","−7"], c:"12", lv:1},
+    {d:"Qual è il 20% di 150?", r:["30","25","20","35"], c:"30", lv:1},
+    {d:"Quanto fa 2/3 di 90?", r:["60","45","30","75"], c:"60", lv:1},
+    {d:"Qual è l'area di un rettangolo 6×4?", r:["24","20","28","12"], c:"24", lv:1},
+    {d:"Quanto fa √81?", r:["9","8","7","6"], c:"9", lv:1},
+    // MEDIO (lv:2)
+    {d:"Risolvi: 2x − 3 = 7. Quanto vale x?", r:["5","4","6","3"], c:"5", lv:2},
+    {d:"Qual è il discriminante di x² + 4x + 4 = 0?", r:["0","16","8","4"], c:"0", lv:2},
+    {d:"L'area di un cerchio con r=3 è? (π≈3,14)", r:["28,26","18,84","9,42","12,56"], c:"28,26", lv:2},
+    {d:"Semplifica: (x²−4)/(x−2)", r:["x+2","x−2","x²","2"], c:"x+2", lv:2},
+    {d:"Quanto vale log₁₀(1000)?", r:["3","2","10","100"], c:"3", lv:2},
+    {d:"Risolvi: x² − 5x + 6 = 0. Una soluzione è?", r:["2","4","5","1"], c:"2", lv:2},
+    {d:"Qual è la pendenza della retta y = 3x − 2?", r:["3","−2","2","−3"], c:"3", lv:2},
+    {d:"Quanto fa sen(90°)?", r:["1","0","−1","0,5"], c:"1", lv:2},
+    {d:"Risolvi il sistema: 2x+y=5, x−y=1. Quanto vale x?", r:["2","3","1","4"], c:"2", lv:2},
+    {d:"Semplifica: (a²b³)/(ab²)", r:["ab","a²b","ab²","a/b"], c:"ab", lv:2},
+    {d:"Qual è l'equazione di una retta parallela a y=2x+1?", r:["y=2x+5","y=3x+1","y=x+2","y=−2x+1"], c:"y=2x+5", lv:2},
+    {d:"Quanto fa ∫x dx? (integrale indefinito)", r:["x²/2 + C","x² + C","2x + C","x/2 + C"], c:"x²/2 + C", lv:2},
+    // DIFFICILE (lv:3)
+    {d:"Qual è il limite di (sin x)/x per x→0?", r:["1","0","∞","non esiste"], c:"1", lv:3},
+    {d:"Quante soluzioni reali ha x² + 1 = 0?", r:["Nessuna","1","2","Infinite"], c:"Nessuna", lv:3},
+    {d:"Se f(x)=x³, quanto vale f'(x)?", r:["3x²","3x","x²","2x³"], c:"3x²", lv:3},
+    {d:"Cosa rappresenta la derivata prima f'(x)?", r:["Tasso di variazione istantaneo","Area sotto la curva","Valore massimo","La media"], c:"Tasso di variazione istantaneo", lv:3},
+    {d:"Qual è la formula di De Moivre per i numeri complessi?", r:["(cosθ+i·sinθ)ⁿ=cos(nθ)+i·sin(nθ)","z=a+bi","|z|=√(a²+b²)","z·z̄=|z|²"], c:"(cosθ+i·sinθ)ⁿ=cos(nθ)+i·sin(nθ)", lv:3},
+    {d:"Il teorema di Rolle richiede che f sia continua in [a,b] e...?", r:["Derivabile in (a,b) con f(a)=f(b)","Crescente","Derivabile ovunque","Positiva"], c:"Derivabile in (a,b) con f(a)=f(b)", lv:3},
+    {d:"Quanto fa la somma della serie geometrica 1+1/2+1/4+...?", r:["2","1","3","∞"], c:"2", lv:3},
+  ],
+
+  chimica:[
+    {d:"Qual è il simbolo chimico dell'oro?", r:["Au","Or","Go","Ag"], c:"Au", lv:1},
+    {d:"Quanti protoni ha il Carbonio?", r:["6","12","8","4"], c:"6", lv:1},
+    {d:"Qual è la formula dell'acqua?", r:["H₂O","HO","H₂O₂","OH"], c:"H₂O", lv:1},
+    {d:"Come si chiama NaCl?", r:["Cloruro di sodio","Ossido di sodio","Acido cloridrico","Idrossido di sodio"], c:"Cloruro di sodio", lv:1},
+    {d:"Qual è il simbolo dell'ossigeno?", r:["O","Ox","Os","Og"], c:"O", lv:1},
+    {d:"Quanti elettroni ha l'idrogeno?", r:["1","2","0","3"], c:"1", lv:1},
+    {d:"Cos'è un atomo?", r:["La più piccola unità di un elemento","Una molecola","Un ione","Un protone"], c:"La più piccola unità di un elemento", lv:1},
+    {d:"Qual è il simbolo del ferro?", r:["Fe","Fr","Fo","Fi"], c:"Fe", lv:1},
+    {d:"Qual è il numero atomico del Sodio?", r:["11","23","12","10"], c:"11", lv:1},
+    {d:"Quanti stati di aggregazione della materia esistono (classici)?", r:["3","2","4","5"], c:"3", lv:1},
+    {d:"Qual è la formula del biossido di carbonio?", r:["CO₂","CO","C₂O","C₂O₂"], c:"CO₂", lv:1},
+    {d:"L'acqua bolle a quanti gradi Celsius a livello del mare?", r:["100","90","80","120"], c:"100", lv:1},
+    {d:"Quante moli ci sono in 18g di H₂O? (M=18g/mol)", r:["1","2","0,5","18"], c:"1", lv:2},
+    {d:"Qual è il pH di una soluzione neutra?", r:["7","0","14","1"], c:"7", lv:2},
+    {d:"Bilancia H₂+O₂→H₂O. Coefficiente di H₂?", r:["2","1","3","4"], c:"2", lv:2},
+    {d:"Quale legame si forma tra Na e Cl?", r:["Ionico","Covalente","Metallico","Van der Waals"], c:"Ionico", lv:2},
+    {d:"Qual è la formula dell'acido solforico?", r:["H₂SO₄","H₂SO₃","HSO₄","SO₄"], c:"H₂SO₄", lv:2},
+    {d:"Cosa indica il numero di massa di un atomo?", r:["Protoni+neutroni","Solo protoni","Elettroni+protoni","Solo neutroni"], c:"Protoni+neutroni", lv:2},
+    {d:"Quanti grammi pesa 1 mole di CO₂? (C=12,O=16)", r:["44g","28g","32g","22g"], c:"44g", lv:2},
+    {d:"Cosa succede al pH aggiungendo un acido forte?", r:["Diminuisce","Aumenta","Rimane uguale","Diventa 14"], c:"Diminuisce", lv:2},
+    {d:"Cos'è una reazione di ossidoriduzione?", r:["Trasferimento di elettroni tra reagenti","Formazione di sali","Reazione con acidi","Combustione"], c:"Trasferimento di elettroni tra reagenti", lv:2},
+    {d:"In quale gruppo della tavola periodica si trovano i metalli alcalini?", r:["Gruppo 1","Gruppo 2","Gruppo 17","Gruppo 18"], c:"Gruppo 1", lv:2},
+    {d:"Calcola la concentrazione molare: 2 mol in 0,5 L", r:["4 M","1 M","2 M","0,25 M"], c:"4 M", lv:3},
+    {d:"Cosa si conserva in una reazione chimica bilanciata?", r:["Massa e carica","Solo la massa","Solo le molecole","L'energia"], c:"Massa e carica", lv:3},
+    {d:"Qual è il pH di HCl 0,01 M?", r:["2","1","3","7"], c:"2", lv:3},
+    {d:"Cosa sono gli isomeri?", r:["Composti con stessa formula molecolare ma struttura diversa","Stessa struttura formule diverse","Elementi dello stesso gruppo","Atomi con stesso numero di neutroni"], c:"Composti con stessa formula molecolare ma struttura diversa", lv:3},
+    {d:"Qual è la configurazione elettronica del Carbonio (Z=6)?", r:["1s²2s²2p²","1s²2s²2p⁶","1s²2p⁴","2s²2p²"], c:"1s²2s²2p²", lv:3},
+  ],
+
+  fisica:[
+    {d:"Un'auto va a 60 km/h. Quanti km percorre in 2 ore?", r:["120","60","30","180"], c:"120", lv:1},
+    {d:"Qual è la formula della velocità?", r:["v=s/t","v=s×t","v=t/s","v=m×a"], c:"v=s/t", lv:1},
+    {d:"Qual è l'unità di misura della forza?", r:["Newton","Joule","Watt","Pascal"], c:"Newton", lv:1},
+    {d:"Qual è l'accelerazione di gravità sulla Terra?", r:["9,8 m/s²","10 m/s","9,8 m/s","0,98 m/s²"], c:"9,8 m/s²", lv:1},
+    {d:"Cosa enuncia il 1° principio della dinamica?", r:["Un corpo fermo rimane fermo senza forze","F=ma","Azione=Reazione","L'energia si conserva"], c:"Un corpo fermo rimane fermo senza forze", lv:1},
+    {d:"Qual è l'unità di misura dell'energia?", r:["Joule","Newton","Watt","Pascal"], c:"Joule", lv:1},
+    {d:"Cosa misura il Watt?", r:["Potenza","Energia","Forza","Tensione"], c:"Potenza", lv:1},
+    {d:"Converti 72 km/h in m/s", r:["20 m/s","18 m/s","25 m/s","72 m/s"], c:"20 m/s", lv:1},
+    {d:"Qual è la formula del peso?", r:["P=m×g","P=m/g","P=g/m","P=m+g"], c:"P=m×g", lv:1},
+    {d:"L'energia cinetica dipende da?", r:["Massa e velocità","Solo dalla massa","Solo dalla velocità","Altezza e massa"], c:"Massa e velocità", lv:1},
+    {d:"Oggetto di 5kg, F=20N. Accelerazione?", r:["4 m/s²","100 m/s²","0,25 m/s²","15 m/s²"], c:"4 m/s²", lv:2},
+    {d:"Energia cinetica di 2kg a 10 m/s?", r:["100 J","200 J","20 J","50 J"], c:"100 J", lv:2},
+    {d:"V=24V, R=8Ω. Corrente con la legge di Ohm?", r:["3 A","16 A","192 A","0,33 A"], c:"3 A", lv:2},
+    {d:"Due resistenze di 4Ω in parallelo. Resistenza totale?", r:["2Ω","8Ω","4Ω","1Ω"], c:"2Ω", lv:2},
+    {d:"Potenza elettrica: formula?", r:["P=V×I","P=V/I","P=I/V","P=V²×I"], c:"P=V×I", lv:2},
+    {d:"Da h=20m, tempo di caduta libera? (g=10)", r:["2 s","4 s","1 s","10 s"], c:"2 s", lv:2},
+    {d:"Cosa afferma il principio di conservazione dell'energia?", r:["L'energia totale di un sistema isolato è costante","L'energia si crea","La velocità è costante","La massa si conserva"], c:"L'energia totale di un sistema isolato è costante", lv:2},
+    {d:"Forza di Coulomb: cosa dipende da essa?", r:["Distanza e cariche delle particelle","Solo dalla distanza","Solo dalla massa","Temperatura e pressione"], c:"Distanza e cariche delle particelle", lv:3},
+    {d:"Cosa afferma il 2° principio della termodinamica?", r:["Il calore fluisce spontaneamente dal caldo al freddo","L'energia si conserva","La pressione aumenta con la temperatura","Il volume aumenta riscaldando"], c:"Il calore fluisce spontaneamente dal caldo al freddo", lv:3},
+    {d:"Velocità di un oggetto che cade per 3s (g=10)?", r:["30 m/s","15 m/s","9 m/s","3 m/s"], c:"30 m/s", lv:3},
+    {d:"Qual è la formula dell'energia potenziale gravitazionale?", r:["Ep=mgh","Ep=mv²/2","Ep=Fd","Ep=Pt"], c:"Ep=mgh", lv:3},
+    {d:"Cos'è la resistività?", r:["Proprietà del materiale che indica la sua resistenza al flusso di corrente","La resistenza totale del circuito","La corrente per unità di area","La tensione diviso corrente"], c:"Proprietà del materiale che indica la sua resistenza al flusso di corrente", lv:3},
+  ],
+
+  storia:[
+    {d:"In quale anno iniziò la Prima Guerra Mondiale?", r:["1914","1918","1939","1900"], c:"1914", lv:1},
+    {d:"Chi era il dittatore fascista dell'Italia?", r:["Mussolini","Hitler","Stalin","Franco"], c:"Mussolini", lv:1},
+    {d:"In quale anno cadde il Muro di Berlino?", r:["1989","1991","1985","1961"], c:"1989", lv:1},
+    {d:"Chi fu il primo presidente degli Stati Uniti?", r:["Washington","Lincoln","Jefferson","Adams"], c:"Washington", lv:1},
+    {d:"La Rivoluzione Francese iniziò nel:", r:["1789","1776","1815","1799"], c:"1789", lv:1},
+    {d:"Chi era Napoleone Bonaparte?", r:["Generale e imperatore francese","Re di Spagna","Presidente americano","Zar di Russia"], c:"Generale e imperatore francese", lv:1},
+    {d:"In quale anno finì la Seconda Guerra Mondiale?", r:["1945","1944","1946","1943"], c:"1945", lv:1},
+    {d:"Cosa fu la Resistenza italiana?", r:["Movimento partigiano contro il nazifascismo","Una battaglia navale","Un partito politico","Un trattato di pace"], c:"Movimento partigiano contro il nazifascismo", lv:1},
+    {d:"In quale anno fu firmata la Costituzione italiana?", r:["1948","1946","1945","1950"], c:"1948", lv:1},
+    {d:"Chi uccise Giulio Cesare?", r:["Bruto e Cassio","Marco Antonio","Ottaviano","Pompeo"], c:"Bruto e Cassio", lv:1},
+    {d:"In quale anno iniziò la Rivoluzione Industriale?", r:["Fine 1700 in Inghilterra","1850 in Francia","1900 in USA","1789 in Europa"], c:"Fine 1700 in Inghilterra", lv:1},
+    {d:"Cosa scatenò la Prima Guerra Mondiale?", r:["Assassinio dell'arciduca Francesco Ferdinando","Invasione della Polonia","Crollo della Borsa","Trattato di Versailles"], c:"Assassinio dell'arciduca Francesco Ferdinando", lv:2},
+    {d:"Cos'era il Risorgimento italiano?", r:["Processo di unificazione dell'Italia nel XIX sec.","Una guerra mondiale","Una crisi economica","Un movimento artistico"], c:"Processo di unificazione dell'Italia nel XIX sec.", lv:2},
+    {d:"Cosa fu la Guerra Fredda?", r:["Tensione politica tra USA e URSS dopo la WWII","Guerra in territori artici","Crisi economica globale","Conflitto militare europeo"], c:"Tensione politica tra USA e URSS dopo la WWII", lv:2},
+    {d:"Chi era Stalin?", r:["Dittatore dell'Unione Sovietica","Presidente degli USA","Cancelliere tedesco","Duce italiano"], c:"Dittatore dell'Unione Sovietica", lv:2},
+    {d:"Quando fu unificata l'Italia?", r:["1861","1848","1870","1900"], c:"1861", lv:2},
+    {d:"Cosa fu l'Olocausto?", r:["Genocidio degli ebrei europei da parte dei nazisti","Una battaglia della WWI","Un campo di prigionia","Una legge razziale italiana"], c:"Genocidio degli ebrei europei da parte dei nazisti", lv:2},
+    {d:"Qual fu la conseguenza principale del Trattato di Versailles per la Germania?", r:["Pesanti riparazioni e perdita di territori","Divisione in due stati","Occupazione alleata","Perdita delle colonie africane"], c:"Pesanti riparazioni e perdita di territori", lv:3},
+    {d:"Cosa fu la Rivoluzione d'Ottobre del 1917?", r:["Rivoluzione bolscevica che portò Lenin al potere in Russia","Rivolta operaia in Germania","Colpo di stato in Francia","Fine della Prima Guerra Mondiale"], c:"Rivoluzione bolscevica che portò Lenin al potere in Russia", lv:3},
+    {d:"Cos'era il Piano Marshall?", r:["Piano USA di aiuti economici all'Europa dopo la WWII","Un piano militare della NATO","Un accordo nucleare","Un trattato commerciale"], c:"Piano USA di aiuti economici all'Europa dopo la WWII", lv:3},
+    {d:"Cosa sancì la Pace di Westfalia (1648)?", r:["Fine della Guerra dei Trent'anni e nascita del sistema degli stati sovrani","Inizio dell'Impero Romano","Fine delle Crociate","Nascita della Repubblica Francese"], c:"Fine della Guerra dei Trent'anni e nascita del sistema degli stati sovrani", lv:3},
+  ],
+
+  scienze:[
+    {d:"Qual è la funzione del mitocondrio?", r:["Produrre energia (ATP)","Sintesi proteica","Digestione cellulare","Conservare il DNA"], c:"Produrre energia (ATP)", lv:1},
+    {d:"Cosa produce la fotosintesi?", r:["Glucosio e ossigeno","CO₂ e acqua","Proteine e grassi","ATP e CO₂"], c:"Glucosio e ossigeno", lv:1},
+    {d:"Quante paia di cromosomi ha l'uomo?", r:["23","46","22","24"], c:"23", lv:1},
+    {d:"Cosa sono i batteri?", r:["Organismi procarioti unicellulari","Organismi eucarioti","Virus","Funghi"], c:"Organismi procarioti unicellulari", lv:1},
+    {d:"Qual è la molecola che porta le informazioni genetiche?", r:["DNA","RNA","ATP","Proteina"], c:"DNA", lv:1},
+    {d:"Cosa fa la membrana cellulare?", r:["Regola cosa entra ed esce dalla cellula","Produce energia","Sintetizza proteine","Conserva il DNA"], c:"Regola cosa entra ed esce dalla cellula", lv:1},
+    {d:"Cos'è la fotosintesi clorofilliana?", r:["Processo che trasforma CO₂ e acqua in glucosio usando luce solare","Processo che produce CO₂","Respirazione delle piante","Movimento delle foglie"], c:"Processo che trasforma CO₂ e acqua in glucosio usando luce solare", lv:1},
+    {d:"Quanti regni classifica la biologia (sistema dei 5 regni)?", r:["5","3","4","6"], c:"5", lv:1},
+    {d:"Qual è la più grande struttura del nucleo cellulare?", r:["Nucleolo","Cromatina","Involucro nucleare","Ribosoma"], c:"Nucleolo", lv:1},
+    {d:"Quante fasi ha la mitosi?", r:["4","2","6","8"], c:"4", lv:2},
+    {d:"Differenza tra cellula animale e vegetale?", r:["La vegetale ha parete cellulare e cloroplasti","La animale ha vacuolo grande","La vegetale non ha nucleo","Nessuna differenza"], c:"La vegetale ha parete cellulare e cloroplasti", lv:2},
+    {d:"Cosa sono gli enzimi?", r:["Catalizzatori biologici","Molecole energetiche","Tipi di DNA","Membrane cellulari"], c:"Catalizzatori biologici", lv:2},
+    {d:"Cos'è la catena alimentare?", r:["Sequenza di organismi in cui ognuno mangia il precedente","Un ciclo dell'azoto","Un processo cellulare","Una rete metabolica"], c:"Sequenza di organismi in cui ognuno mangia il precedente", lv:2},
+    {d:"Differenza tra DNA e RNA?", r:["Il DNA è a doppio filamento, l'RNA singolo","Il DNA è nell'RNA","Il RNA ha più nucleotidi","Non ci sono differenze"], c:"Il DNA è a doppio filamento, l'RNA singolo", lv:2},
+    {d:"Cos'è la selezione naturale?", r:["I più adatti all'ambiente si riproducono di più","I più grandi sopravvivono","Gli animali si scelgono","Un processo casuale"], c:"I più adatti all'ambiente si riproducono di più", lv:2},
+    {d:"Cosa fa la respirazione cellulare aerobica?", r:["Converte glucosio in ATP usando ossigeno","Produce glucosio dalla CO₂","Duplica il DNA","Sintetizza proteine"], c:"Converte glucosio in ATP usando ossigeno", lv:2},
+    {d:"Cosa afferma la 1ª legge di Mendel?", r:["I caratteri si trasmettono in forma dominante/recessiva","I geni si mescolano casualmente","Le specie evolvono per selezione","Il DNA si replica fedelmente"], c:"I caratteri si trasmettono in forma dominante/recessiva", lv:3},
+    {d:"Cos'è una mutazione genetica?", r:["Cambiamento nella sequenza del DNA","Duplicazione della cellula","Sintesi di una nuova proteina","Un errore nella divisione cellulare"], c:"Cambiamento nella sequenza del DNA", lv:3},
+    {d:"Cosa sono le proteine in termini molecolari?", r:["Polimeri di amminoacidi","Polimeri di glucosio","Sequenze di DNA","Molecole lipidiche"], c:"Polimeri di amminoacidi", lv:3},
+    {d:"Cos'è l'omeostasi?", r:["Capacità di mantenere condizioni interne stabili","Processo di crescita","Ciclo riproduttivo","Tipo di respirazione"], c:"Capacità di mantenere condizioni interne stabili", lv:3},
+  ],
+
+  inglese:[
+    {d:"Past Simple di 'go'?", r:["went","goed","gone","going"], c:"went", lv:1},
+    {d:"Plurale di 'child'?", r:["children","childs","childes","child"], c:"children", lv:1},
+    {d:"Traduci: 'I eat an apple every day'", r:["Mangio una mela ogni giorno","Ho mangiato una mela","Mangerei una mela","Mangerò una mela"], c:"Mangio una mela ogni giorno", lv:1},
+    {d:"Past Simple di 'have'?", r:["had","haved","has","having"], c:"had", lv:1},
+    {d:"Cosa significa 'beautiful'?", r:["Bello/bella","Brutto/a","Grande","Piccolo/a"], c:"Bello/bella", lv:1},
+    {d:"Come si dice 'Sto mangiando' in inglese?", r:["I am eating","I eat","I was eating","I have eaten"], c:"I am eating", lv:1},
+    {d:"Past Simple di 'run'?", r:["ran","runned","run","running"], c:"ran", lv:1},
+    {d:"Cosa significa 'although'?", r:["Sebbene/nonostante","Quindi","Inoltre","Perché"], c:"Sebbene/nonostante", lv:1},
+    {d:"Come si forma il comparativo di 'big'?", r:["bigger","more big","biggest","biger"], c:"bigger", lv:1},
+    {d:"Quale tempo usa 'since/for'?", r:["Present Perfect","Simple Past","Future","Present Simple"], c:"Present Perfect", lv:1},
+    {d:"Scegli: 'If I ___ rich, I would travel'", r:["were","am","was","be"], c:"were", lv:2},
+    {d:"Trasforma al passivo: 'The chef cooks the meal'", r:["The meal is cooked by the chef","The meal was cooked","The chef is cooking","The meal cooks"], c:"The meal is cooked by the chef", lv:2},
+    {d:"Present Perfect di 'I eat pizza'?", r:["I have eaten pizza","I ate pizza","I had eaten pizza","I was eating pizza"], c:"I have eaten pizza", lv:2},
+    {d:"Cosa significa 'nevertheless'?", r:["Tuttavia","Inoltre","Quindi","Perciò"], c:"Tuttavia", lv:2},
+    {d:"Traduci: 'She has been studying for 3 hours'", r:["Studia da 3 ore","Ha studiato 3 ore fa","Studierà 3 ore","Studiò per 3 ore"], c:"Studia da 3 ore", lv:2},
+    {d:"'Give up' significa?", r:["Arrendersi","Regalare","Alzarsi","Crescere"], c:"Arrendersi", lv:2},
+    {d:"Reported speech di 'I will come tomorrow'?", r:["He said he would come the next day","He said he will come tomorrow","He said he came tomorrow","He told me he comes"], c:"He said he would come the next day", lv:3},
+    {d:"'By the time she arrived, we ___ dinner'", r:["had finished","finished","have finished","finish"], c:"had finished", lv:3},
+    {d:"Cosa indica il Past Perfect?", r:["Un'azione avvenuta prima di un'altra nel passato","Un'azione futura rispetto al passato","Un'azione in corso nel passato","Un'azione abituale nel passato"], c:"Un'azione avvenuta prima di un'altra nel passato", lv:3},
+    {d:"'Despite' è seguito da?", r:["Sostantivo o gerundio","Che + soggetto + verbo","Solo verbo all'infinito","Solo un aggettivo"], c:"Sostantivo o gerundio", lv:3},
+  ],
+
+  geografia:[
+    {d:"Capitale dell'Australia?", r:["Canberra","Sydney","Melbourne","Perth"], c:"Canberra", lv:1},
+    {d:"Fiume più lungo del mondo?", r:["Nilo","Amazzonia","Mississippi","Congo"], c:"Nilo", lv:1},
+    {d:"In quale continente si trova l'Egitto?", r:["Africa","Asia","Europa","Medio Oriente"], c:"Africa", lv:1},
+    {d:"Paese più grande del mondo per superficie?", r:["Russia","Canada","USA","Cina"], c:"Russia", lv:1},
+    {d:"Quanti oceani ci sono?", r:["5","4","6","3"], c:"5", lv:1},
+    {d:"Montagna più alta del mondo?", r:["Everest","K2","Monte Bianco","Kilimanjaro"], c:"Everest", lv:1},
+    {d:"Capitale del Brasile?", r:["Brasilia","Rio de Janeiro","San Paolo","Salvador"], c:"Brasilia", lv:1},
+    {d:"In quale paese si trova il Rio delle Amazzoni?", r:["Brasile","Colombia","Peru","Venezuela"], c:"Brasile", lv:1},
+    {d:"Capitale del Giappone?", r:["Tokyo","Osaka","Kyoto","Hiroshima"], c:"Tokyo", lv:1},
+    {d:"Quale deserto è il più grande del mondo (caldo)?", r:["Sahara","Gobi","Kalahari","Atacama"], c:"Sahara", lv:1},
+    {d:"Densità di un paese con 50M abitanti e 500.000 km²?", r:["100 ab/km²","250 ab/km²","10 ab/km²","50 ab/km²"], c:"100 ab/km²", lv:2},
+    {d:"Cos'è il clima mediterraneo?", r:["Estati calde/secche, inverni miti/piovosi","Piogge tutto l'anno","Estati fredde, inverni nevosi","Caldo umido tutto l'anno"], c:"Estati calde/secche, inverni miti/piovosi", lv:2},
+    {d:"Qual è il paese più popoloso del mondo?", r:["India","Cina","USA","Indonesia"], c:"India", lv:2},
+    {d:"Dove si trova il Canale di Panama?", r:["America Centrale","America del Sud","Caraibi","Messico"], c:"America Centrale", lv:2},
+    {d:"Quali stati confinano con l'Italia?", r:["Francia, Svizzera, Austria, Slovenia","Francia, Spagna, Germania","Austria, Germania, Croazia","Svizzera, Germania, Ungheria"], c:"Francia, Svizzera, Austria, Slovenia", lv:2},
+    {d:"Cos'è la placca tettonica?", r:["Porzione rigida della crosta terrestre in movimento","Un tipo di roccia","Una corrente oceanica","Un tipo di terremoto"], c:"Porzione rigida della crosta terrestre in movimento", lv:3},
+    {d:"Perché si formano i deserti nel Sahara e in zone simili?", r:["Alte pressioni atmosferiche e poca umidità","Vicinanza all'equatore","Venti freddi dal nord","Lontananza dagli oceani"], c:"Alte pressioni atmosferiche e poca umidità", lv:3},
+    {d:"Cos'è l'indice di sviluppo umano (ISU)?", r:["Misura che combina speranza di vita, istruzione e reddito","Solo il PIL pro capite","La densità di popolazione","Il tasso di natalità"], c:"Misura che combina speranza di vita, istruzione e reddito", lv:3},
+  ],
+
+  filosofia:[
+    {d:"Chi scrisse 'La Repubblica'?", r:["Platone","Aristotele","Socrate","Kant"], c:"Platone", lv:1},
+    {d:"'Cogito ergo sum' significa?", r:["Penso dunque sono","Sono dunque penso","Esisto dunque ragiono","Agisco dunque penso"], c:"Penso dunque sono", lv:1},
+    {d:"Chi è considerato il padre della filosofia?", r:["Socrate","Platone","Aristotele","Talete"], c:"Socrate", lv:1},
+    {d:"Chi scrisse la 'Critica della Ragion Pura'?", r:["Kant","Hegel","Nietzsche","Hume"], c:"Kant", lv:1},
+    {d:"Cos'è l'etica?", r:["Studio del bene e del male, dei valori morali","Studio della conoscenza","Studio della natura","Studio della politica"], c:"Studio del bene e del male, dei valori morali", lv:1},
+    {d:"Chi fu Aristotele?", r:["Filosofo greco, allievo di Platone","Filosofo romano","Matematico greco","Re di Macedonia"], c:"Filosofo greco, allievo di Platone", lv:1},
+    {d:"Cos'è la metafisica?", r:["Studio dell'essere e della realtà oltre la fisica","Studio della natura","Studio della morale","Studio della politica"], c:"Studio dell'essere e della realtà oltre la fisica", lv:1},
+    {d:"Chi inventò la maieutica?", r:["Socrate","Platone","Aristotele","Sofisti"], c:"Socrate", lv:1},
+    {d:"Cos'è l'imperativo categorico di Kant?", r:["Principio morale universale e incondizionato","Legge dello stato","Istinto naturale","Comando divino"], c:"Principio morale universale e incondizionato", lv:2},
+    {d:"La dialettica hegeliana si compone di?", r:["Tesi, antitesi, sintesi","Tesi, ipotesi, conclusione","Problema, analisi, soluzione","Input, processo, output"], c:"Tesi, antitesi, sintesi", lv:2},
+    {d:"Cos'è il dualismo cartesiano?", r:["Distinzione tra res cogitans (mente) e res extensa (corpo)","Unione di anima e corpo","Negazione della materia","La teoria delle idee innate"], c:"Distinzione tra res cogitans (mente) e res extensa (corpo)", lv:2},
+    {d:"Cosa intende Platone per 'mondo delle idee'?", r:["Un mondo eterno e perfetto di cui la realtà è copia","Il mondo fisico che vediamo","I pensieri umani","I sogni collettivi"], c:"Un mondo eterno e perfetto di cui la realtà è copia", lv:2},
+    {d:"Cos'è l'empirismo?", r:["Teoria che basa la conoscenza sull'esperienza sensoriale","Teoria che basa la conoscenza sulla ragione pura","Studio dell'empiria","Filosofia del linguaggio"], c:"Teoria che basa la conoscenza sull'esperienza sensoriale", lv:2},
+    {d:"L'Übermensch di Nietzsche è?", r:["Un essere che supera la morale tradizionale creando nuovi valori","Un uomo fisicamente superiore","Un ideale di perfezione greca","Un leader politico"], c:"Un essere che supera la morale tradizionale creando nuovi valori", lv:3},
+    {d:"Cos'è il nichilismo?", r:["Negazione di valori assoluti e significati universali","Studio del nulla fisico","Filosofia orientale","Negazione dell'esistenza di Dio"], c:"Negazione di valori assoluti e significati universali", lv:3},
+    {d:"Cosa distingue empirismo da razionalismo?", r:["Empirismo=esperienza, razionalismo=ragione pura","Sono la stessa cosa","Empirismo usa la logica, razionalismo i sensi","Empirismo greco, razionalismo moderno"], c:"Empirismo=esperienza, razionalismo=ragione pura", lv:3},
+    {d:"Cosa intende Marx per 'alienazione'?", r:["Il lavoratore è separato dal prodotto del suo lavoro","Un disturbo psicologico","La lontananza dalla natura","Un concetto hegeliano puro"], c:"Il lavoratore è separato dal prodotto del suo lavoro", lv:3},
+  ],
+
+  latino:[
+    {d:"Come si dice 'il libro' in latino (nominativo)?", r:["liber","libri","libro","librum"], c:"liber", lv:1},
+    {d:"Genitivo singolare di 'puella'?", r:["puellae","puella","puellam","puellarum"], c:"puellae", lv:1},
+    {d:"'Amo' in italiano significa?", r:["Io amo","Tu ami","Egli ama","Noi amiamo"], c:"Io amo", lv:1},
+    {d:"Come si dice 'essere' alla 3ª persona singolare presente?", r:["est","sunt","erat","sit"], c:"est", lv:1},
+    {d:"Nominativo plurale di 'dominus'?", r:["domini","dominos","dominum","dominorum"], c:"domini", lv:1},
+    {d:"'Veni, vidi, vici' fu detto da?", r:["Giulio Cesare","Augusto","Cicerone","Virgilio"], c:"Giulio Cesare", lv:1},
+    {d:"Quale caso indica il complemento oggetto in latino?", r:["Accusativo","Nominativo","Genitivo","Ablativo"], c:"Accusativo", lv:1},
+    {d:"'Pater' in latino significa?", r:["Padre","Madre","Fratello","Figlio"], c:"Padre", lv:1},
+    {d:"Traduci: 'Puella in horto ambulat'", r:["La ragazza cammina nel giardino","Il ragazzo corre nel campo","La donna lavora in casa","La fanciulla dorme"], c:"La ragazza cammina nel giardino", lv:2},
+    {d:"In 'Caesar hostes vicit', 'hostes' è?", r:["Complemento oggetto (accusativo plurale)","Soggetto","Complemento di luogo","Attributo"], c:"Complemento oggetto (accusativo plurale)", lv:2},
+    {d:"Come si forma il perfetto di 'amo'?", r:["amavi","amabo","amarem","amatus sum"], c:"amavi", lv:2},
+    {d:"Quale proposizione usa il congiuntivo in latino?", r:["Cum narrativo","Proposizione principale","Relativa semplice","Temporale con 'ubi'"], c:"Cum narrativo", lv:2},
+    {d:"Cos'è l'ablativo assoluto?", r:["Costruzione con participio + nome/pronome all'ablativo","Un caso verbale","Una forma di imperativo","Un tipo di subordinata con 'ut'"], c:"Costruzione con participio + nome/pronome all'ablativo", lv:3},
+    {d:"'Milites, oppido capto, discesserunt' — oppido capto è?", r:["Ablativo assoluto","Complemento oggetto","Proposizione causale","Cum + congiuntivo"], c:"Ablativo assoluto", lv:3},
+    {d:"Come si traduce il gerundivo?", r:["Indica necessità o obbligo (es. 'da fare')","È uguale al gerundio","Indica un'azione passata","È solo decorativo"], c:"Indica necessità o obbligo (es. 'da fare')", lv:3},
+  ],
+
+  informatica:[
+    {d:"Quanto fa 1010 in binario convertito in decimale?", r:["10","12","8","14"], c:"10", lv:1},
+    {d:"Cosa significa 'CPU'?", r:["Unità di elaborazione centrale","Unità di memoria centrale","Porta universale","Unità di controllo"], c:"Unità di elaborazione centrale", lv:1},
+    {d:"Differenza tra RAM e ROM?", r:["RAM volatile, ROM permanente","ROM volatile, RAM permanente","Sono uguali","RAM più lenta"], c:"RAM volatile, ROM permanente", lv:1},
+    {d:"Cosa fa un ciclo 'for'?", r:["Ripete codice n volte","Esegue se condizione vera","Definisce funzione","Termina programma"], c:"Ripete codice n volte", lv:1},
+    {d:"Cosa significa HTML?", r:["HyperText Markup Language","High Transfer Machine Language","HyperText Making Language","Home Text Markup Language"], c:"HyperText Markup Language", lv:1},
+    {d:"Quale simbolo indica un commento in Python?", r:["#","//","/*","--"], c:"#", lv:1},
+    {d:"Cosa significa 'bug' in informatica?", r:["Errore nel codice","Un tipo di virus","Una variabile","Un comando"], c:"Errore nel codice", lv:1},
+    {d:"Cosa fa il tag <br> in HTML?", r:["Interruzione di riga","Testo in grassetto","Link","Immagine"], c:"Interruzione di riga", lv:1},
+    {d:"In Python, cosa stampa: print(len('ciao'))?", r:["4","3","5","'ciao'"], c:"4", lv:2},
+    {d:"Cosa fa SELECT * FROM studenti WHERE voto > 7?", r:["Seleziona studenti con voto >7","Cancella studenti","Aggiorna voto","Conta studenti"], c:"Seleziona studenti con voto >7", lv:2},
+    {d:"Cos'è la ricorsione?", r:["Funzione che chiama se stessa","Ciclo infinito","Tipo di variabile","Errore di sistema"], c:"Funzione che chiama se stessa", lv:2},
+    {d:"Quale struttura dati usa LIFO?", r:["Stack (pila)","Queue (coda)","Array","Lista"], c:"Stack (pila)", lv:2},
+    {d:"Cos'è un algoritmo?", r:["Sequenza finita di istruzioni per risolvere un problema","Un tipo di dato","Un linguaggio di programmazione","Un errore di sistema"], c:"Sequenza finita di istruzioni per risolvere un problema", lv:2},
+    {d:"Qual è la complessità di una ricerca lineare?", r:["O(n)","O(1)","O(log n)","O(n²)"], c:"O(n)", lv:3},
+    {d:"Cos'è una JOIN in SQL?", r:["Combina righe di due tabelle in base a una condizione comune","Cancella righe duplicate","Ordina i risultati","Raggruppa per valore"], c:"Combina righe di due tabelle in base a una condizione comune", lv:3},
+    {d:"Differenza tra processo e thread?", r:["Un processo è indipendente, il thread condivide memoria con altri thread dello stesso processo","Sono la stessa cosa","Il thread è più pesante","Il processo è più veloce"], c:"Un processo è indipendente, il thread condivide memoria con altri thread dello stesso processo", lv:3},
+  ],
+
+  arte:[
+    {d:"Chi dipinse la Gioconda?", r:["Leonardo da Vinci","Michelangelo","Raffaello","Botticelli"], c:"Leonardo da Vinci", lv:1},
+    {d:"Cosa rappresenta il David di Michelangelo?", r:["Re biblico David prima di Golia","Un guerriero romano","Apollo","Un atleta greco"], c:"Re biblico David prima di Golia", lv:1},
+    {d:"In quale città si trova la Cappella Sistina?", r:["Roma","Firenze","Venezia","Milano"], c:"Roma", lv:1},
+    {d:"Chi dipinse La Notte Stellata?", r:["Van Gogh","Picasso","Monet","Dalì"], c:"Van Gogh", lv:1},
+    {d:"In quale periodo artistico lavorò Leonardo da Vinci?", r:["Rinascimento","Barocco","Impressionismo","Romanticismo"], c:"Rinascimento", lv:1},
+    {d:"Chi scolpì La Pietà?", r:["Michelangelo","Donatello","Bernini","Canova"], c:"Michelangelo", lv:1},
+    {d:"In quale museo si trova la Gioconda?", r:["Louvre, Parigi","Uffizi, Firenze","Prado, Madrid","Hermitage, San Pietroburgo"], c:"Louvre, Parigi", lv:1},
+    {d:"Cosa rappresenta il Guernica di Picasso?", r:["Bombardamento di Guernica durante la guerra civile spagnola","La Prima Guerra Mondiale","L'Olocausto","Una battaglia napoleonica"], c:"Bombardamento di Guernica durante la guerra civile spagnola", lv:2},
+    {d:"Qual è la tecnica del chiaroscuro?", r:["Contrasto luce/ombra per dare profondità","Un tipo di scultura","Una tecnica di stampa","Un movimento artistico"], c:"Contrasto luce/ombra per dare profondità", lv:2},
+    {d:"Chi fondò l'Impressionismo?", r:["Monet, Renoir e pittori francesi dell'800","Picasso","Van Gogh","Dalì"], c:"Monet, Renoir e pittori francesi dell'800", lv:2},
+    {d:"Cos'è il Cubismo?", r:["Movimento che scompone oggetti in forme geometriche da più punti di vista","Arte basata su cubi","Movimento astratto americano","Stile architettonico"], c:"Movimento che scompone oggetti in forme geometriche da più punti di vista", lv:2},
+    {d:"Caratteristica principale dell'arte Barocca?", r:["Dinamismo, teatralità e contrasto drammatico","Semplicità e ordine","Geometria e astrazione","Colori pastello e leggerezza"], c:"Dinamismo, teatralità e contrasto drammatico", lv:2},
+    {d:"Cos'è la prospettiva in pittura?", r:["Tecnica per rappresentare la profondità su superficie piana","Un tipo di colore","Un movimento artistico","Una tecnica scultorea"], c:"Tecnica per rappresentare la profondità su superficie piana", lv:3},
+    {d:"Differenza tra Impressionismo e Post-impressionismo?", r:["Il Post-impressionismo è più personale e simbolico, meno legato alla luce del momento","Sono identici","Il Post-impressionismo venne prima","L'Impressionismo è più astratto"], c:"Il Post-impressionismo è più personale e simbolico, meno legato alla luce del momento", lv:3},
+  ],
+
+  musica:[
+    {d:"Quante note ci sono nella scala musicale?", r:["7 (do re mi fa sol la si)","5","8","12"], c:"7 (do re mi fa sol la si)", lv:1},
+    {d:"Chi compose la Quinta Sinfonia?", r:["Beethoven","Mozart","Bach","Vivaldi"], c:"Beethoven", lv:1},
+    {d:"Cosa indica 'Allegro'?", r:["Veloce e vivace","Lento","Moderato","Molto lento"], c:"Veloce e vivace", lv:1},
+    {d:"Chi compose Le Quattro Stagioni?", r:["Vivaldi","Bach","Mozart","Haydn"], c:"Vivaldi", lv:1},
+    {d:"Cosa indica 'Largo'?", r:["Molto lento","Veloce","Moderato","Vivo"], c:"Molto lento", lv:1},
+    {d:"Quante corde ha una chitarra standard?", r:["6","4","5","7"], c:"6", lv:1},
+    {d:"Quale strumento suona Beethoven?", r:["Pianoforte","Violino","Flauto","Organo"], c:"Pianoforte", lv:1},
+    {d:"Quanti movimenti ha tipicamente una sinfonia classica?", r:["4","3","2","5"], c:"4", lv:2},
+    {d:"Cos'è il Do maggiore?", r:["Scala senza alterazioni","Scala con 3 diesis","Scala minore","Accordo di 4 note"], c:"Scala senza alterazioni", lv:2},
+    {d:"Cosa distingue Barocco e periodo Classico in musica?", r:["Barocco più ornamentato, Classico più sobrio ed equilibrato","Barocco più semplice","Sono lo stesso periodo","Classico usa strumenti antichi"], c:"Barocco più ornamentato, Classico più sobrio ed equilibrato", lv:2},
+    {d:"Cosa sono le dinamiche in musica?", r:["Indicazioni di intensità sonora (forte/piano)","La velocità del brano","Il ritmo","La tonalità"], c:"Indicazioni di intensità sonora (forte/piano)", lv:2},
+    {d:"Cos'è una fugă bachiana?", r:["Composizione polifonica basata su un tema che si ripete in diverse voci","Una danza barocca","Un tipo di sonata","Un'aria operistica"], c:"Composizione polifonica basata su un tema che si ripete in diverse voci", lv:3},
+    {d:"Cosa rappresenta il simbolo 'p' in uno spartito?", r:["Piano (suona piano/quieto)","Pausa","Presto","Più forte"], c:"Piano (suona piano/quieto)", lv:3},
+  ],
+
+  ed_fisica:[
+    {d:"Quanti giocatori ci sono in campo nella pallavolo?", r:["6","5","7","9"], c:"6", lv:1},
+    {d:"Quanti minuti dura un tempo nel calcio?", r:["45","40","50","30"], c:"45", lv:1},
+    {d:"Quanti punti vale una tripla nel basket?", r:["3","2","1","4"], c:"3", lv:1},
+    {d:"Quante persone sono in una squadra di rugby union?", r:["15","11","13","7"], c:"15", lv:1},
+    {d:"Quante medaglie olimpiche esistono?", r:["3 (oro, argento, bronzo)","2","4","5"], c:"3 (oro, argento, bronzo)", lv:1},
+    {d:"Ogni quanti anni si tengono le Olimpiadi estive?", r:["4","2","6","8"], c:"4", lv:1},
+    {d:"Quanto è lunga una gara dei 100m piani?", r:["100 metri","200 metri","1000 metri","10km"], c:"100 metri", lv:1},
+    {d:"Cos'è uno sport aerobico?", r:["Usa ossigeno per produrre energia a lungo termine","È esplosivo e breve","È uno sport acquatico","Si pratica al chiuso"], c:"Usa ossigeno per produrre energia a lungo termine", lv:2},
+    {d:"Cosa sono le fibre muscolari lente (rosse)?", r:["Per sforzi prolungati, resistenti alla fatica","Per sforzi esplosivi","Per la forza massimale","Solo per il cuore"], c:"Per sforzi prolungati, resistenti alla fatica", lv:2},
+    {d:"Cos'è il riscaldamento?", r:["Preparazione graduale del corpo all'attività fisica","Un tipo di stretching","L'allenamento principale","Il defaticamento finale"], c:"Preparazione graduale del corpo all'attività fisica", lv:2},
+    {d:"Quanti set si giocano in una partita di pallavolo (al meglio)?", r:["5","3","4","7"], c:"5", lv:2},
+    {d:"Cos'è il VO₂max?", r:["Massima quantità di ossigeno che il corpo può utilizzare","Velocità massima di un atleta","Forza massima di un muscolo","Battito cardiaco massimo"], c:"Massima quantità di ossigeno che il corpo può utilizzare", lv:3},
+    {d:"Cos'è la supercompensazione nell'allenamento?", r:["Il corpo si adatta allo stress superando il livello iniziale di prestazione","Il muscolo si stanca troppo","Un tipo di infortunio","La fase di riscaldamento"], c:"Il corpo si adatta allo stress superando il livello iniziale di prestazione", lv:3},
+    {d:"Cosa sono le fibre muscolari veloci (bianche)?", r:["Per sforzi brevi ed esplosivi, si affaticano velocemente","Per la resistenza aerobica","Solo per il cuore","Per la coordinazione"], c:"Per sforzi brevi ed esplosivi, si affaticano velocemente", lv:3},
+  ],
+
+  altra:[
+    {d:"Capitale d'Italia?", r:["Roma","Milano","Napoli","Torino"], c:"Roma", lv:1},
+    {d:"Quanti secondi in un'ora?", r:["3600","360","600","1800"], c:"3600", lv:1},
+    {d:"Chi scrisse la Divina Commedia?", r:["Dante Alighieri","Petrarca","Boccaccio","Leopardi"], c:"Dante Alighieri", lv:1},
+    {d:"In quale anno Colombo scoprì l'America?", r:["1492","1453","1517","1776"], c:"1492", lv:1},
+    {d:"Qual è l'elemento più abbondante nell'universo?", r:["Idrogeno","Ossigeno","Carbonio","Elio"], c:"Idrogeno", lv:1},
+    {d:"Quanti sensi ha l'essere umano (tradizionali)?", r:["5","4","6","7"], c:"5", lv:1},
+    {d:"Chi dipinse la Notte Stellata?", r:["Van Gogh","Picasso","Monet","Dalì"], c:"Van Gogh", lv:1},
+    {d:"Quanti pianeti ci sono nel sistema solare?", r:["8","9","7","10"], c:"8", lv:1},
+    {d:"Cos'è la fotosintesi?", r:["Processo che trasforma luce in energia nelle piante","Movimento degli animali","Digestione negli insetti","Respirazione dei funghi"], c:"Processo che trasforma luce in energia nelle piante", lv:1},
+    {d:"Qual è la formula chimica del sale da cucina?", r:["NaCl","HCl","NaOH","KCl"], c:"NaCl", lv:2},
+    {d:"Chi fu Einstein?", r:["Fisico che formulò la teoria della relatività","Chimico che scoprì la penicillina","Biologo che scrisse sull'evoluzione","Matematico che inventò il calcolo"], c:"Fisico che formulò la teoria della relatività", lv:2},
+    {d:"Cosa studia l'astronomia?", r:["Corpi celesti e fenomeni dell'universo","La struttura della Terra","Le rocce e i minerali","I fenomeni atmosferici"], c:"Corpi celesti e fenomeni dell'universo", lv:2},
+    {d:"Cos'è il PIL?", r:["Valore totale di beni e servizi prodotti in un paese in un anno","Il debito pubblico","La moneta nazionale","Il tasso di occupazione"], c:"Valore totale di beni e servizi prodotti in un paese in un anno", lv:3},
+    {d:"Cosa afferma la teoria dell'evoluzione di Darwin?", r:["Le specie si evolvono per selezione naturale adattandosi all'ambiente","Le specie sono immutabili","Dio creò le specie","Le specie si evolvono per volontà propria"], c:"Le specie si evolvono per selezione naturale adattandosi all'ambiente", lv:3},
+  ]
+};
+
+// Seleziona domande in base a materia e livello preparazione
+// ── WIKIPEDIA + FALLBACK LOCALE ──────────────────────────────────────────────
+
+// Parole chiave Wikipedia per materia
+const WIKI_TOPICS = {
+  matematica: ["Equazione","Funzione matematica","Teorema di Pitagora","Numeri primi","Geometria euclidea","Derivata","Integrale","Probabilità","Statistica","Trigonometria"],
+  chimica:    ["Tavola periodica degli elementi","Legame chimico","Reazione chimica","Acido","Base (chimica)","Mole (chimica)","Ossidazione","Atomo","Molecola","Soluzione chimica"],
+  fisica:     ["Velocità","Forza","Energia","Legge di Ohm","Circuito elettrico","Gravitazione universale","Termodinamica","Ottica","Magnetismo","Meccanica classica"],
+  storia:     ["Prima guerra mondiale","Seconda guerra mondiale","Rivoluzione francese","Risorgimento italiano","Fascismo","Nazismo","Guerra fredda","Rivoluzione industriale","Rinascimento","Illuminismo"],
+  scienze:    ["Cellula","Fotosintesi","DNA","Mitosi","Ecosistema","Evoluzione","Respirazione cellulare","Virus","Batteri","Sistema nervoso"],
+  inglese:    ["Lingua inglese","William Shakespeare","George Orwell","Jane Austen","Charles Dickens","Oscar Wilde","Mark Twain","Virginia Woolf","Ernest Hemingway","James Joyce"],
+  geografia:  ["Europa","Asia","Africa","America","Oceania","Clima","Vulcano","Terremoto","Oceano Pacifico","Popolazione mondiale"],
+  filosofia:  ["Platone","Aristotele","Immanuel Kant","Friedrich Nietzsche","René Descartes","Socrate","Georg Wilhelm Friedrich Hegel","Karl Marx","Jean-Paul Sartre","Empirismo"],
+  latino:     ["Latino","Impero romano","Giulio Cesare","Cicerone","Virgilio","Lingua latina","Repubblica romana","Augusto","Tacito","Ovidio"],
+  informatica:["Algoritmo","Intelligenza artificiale","Internet","Programmazione","Sistema operativo","Database","Rete informatica","Sicurezza informatica","Python","Java"],
+  arte:       ["Leonardo da Vinci","Michelangelo","Raffaello Sanzio","Pablo Picasso","Vincent van Gogh","Rinascimento","Impressionismo","Arte contemporanea","Barocco","Scultura"],
+  musica:     ["Ludwig van Beethoven","Wolfgang Amadeus Mozart","Johann Sebastian Bach","Opera (musica)","Sinfonia","Musica classica","Musica barocca","Chitarra","Pianoforte","Jazz"],
+  ed_fisica:  ["Pallavolo","Calcio","Basket","Atletica leggera","Olimpiadi","Nuoto","Tennis","Ginnastica","Sport","Allenamento sportivo"],
+  altra:      ["Scienza","Arte","Cultura","Storia","Tecnologia","Letteratura","Filosofia","Matematica","Biologia","Fisica"]
+};
+
+// Scarica estratto Wikipedia in italiano
+async function fetchWikiExtract(topic) {
+  const url = `https://it.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topic)}`;
+  const r = await fetch(url, {headers:{"Accept":"application/json"}});
+  if(!r.ok) throw new Error("wiki error");
+  const d = await r.json();
+  if(!d.extract || d.extract.length < 100) throw new Error("estratto troppo corto");
+  return {titolo: d.title, testo: d.extract};
+}
+
+// Genera domande vere dal testo Wikipedia
+function generaDomandeWiki(titolo, testo, livello, materia) {
+  // Pulisci il testo
+  const t = testo.replace(/\([^)]*\)/g,'').replace(/\[[^\]]*\]/g,'').trim();
+  // Spezza in frasi
+  const frasi = t.split(/[.!?]+/).map(f=>f.trim()).filter(f=>f.length>40 && f.length<300);
+  if(frasi.length < 3) return null;
+
+  const domande = [];
+  const usate = new Set();
+
+  // Strategia: prendi frasi diverse e crea domande "cosa afferma il testo su X?"
+  const frasiMescol = [...frasi].sort(()=>Math.random()-0.5);
+
+  for(const frase of frasiMescol) {
+    if(domande.length >= 5) break;
+
+    // Cerca parole chiave nella frase (sostantivi lunghi, nomi propri)
+    const parole = frase.split(/\s+/).filter(p=>p.length>4 && /^[A-ZÀ-Ü]/.test(p) || p.length>7);
+    if(parole.length === 0) continue;
+
+    // Scegli una parola da "nascondere" per fare la domanda
+    const parolaChiave = parole[Math.floor(Math.random()*parole.length)];
+    if(usate.has(parolaChiave)) continue;
+    usate.add(parolaChiave);
+
+    // Crea domanda
+    const domanda = `Riguardo a "${titolo}": ${frase.replace(parolaChiave, '___________')}`;
+    const corretta = parolaChiave;
+
+    // Crea 3 distrattori plausibili pescando da altre frasi
+    const distrattori = [];
+    for(const altraFrase of frasiMescol) {
+      if(altraFrase === frase) continue;
+      const altreParole = altraFrase.split(/\s+/).filter(p=>p.length>4 && p!==parolaChiave);
+      for(const p of altreParole) {
+        if(!distrattori.includes(p) && p!==corretta && distrattori.length<3) {
+          distrattori.push(p);
+        }
+      }
+      if(distrattori.length>=3) break;
+    }
+    // Fallback distrattori generici per materia
+    const fallbackDist = {
+      storia:["Napoleone","Roma","1848","Francia"],
+      scienze:["mitocondrio","DNA","glucosio","ossigeno"],
+      chimica:["sodio","carbonio","ossigeno","azoto"],
+      fisica:["forza","energia","velocità","massa"],
+      default:["primo","secondo","principale","generale"]
+    };
+    const fb = fallbackDist[materia]||fallbackDist.default;
+    while(distrattori.length<3) distrattori.push(fb[distrattori.length]||"altro");
+
+    const risposte = [corretta,...distrattori.slice(0,3)].sort(()=>Math.random()-0.5);
+    domande.push({domanda, risposte, corretta, scelta:null, daWiki:true});
+  }
+
+  return domande.length>=3 ? domande : null;
+}
+
+// Funzione principale: prova Wikipedia, fallback locale
+async function getDomandeIbride(materia, argomento, livello, onStatus) {
+  // 1. Prova Wikipedia
+  try {
+    onStatus("🌐 Cerco su Wikipedia…");
+    // Scegli topic: usa l'argomento specifico se disponibile, altrimenti un topic casuale della materia
+    const topics = WIKI_TOPICS[materia] || WIKI_TOPICS.altra;
+    // Preferisci l'argomento della verifica se è rilevante
+    let topicDaCercare;
+    if(argomento && argomento.length>2) {
+      topicDaCercare = argomento;
+    } else {
+      topicDaCercare = topics[Math.floor(Math.random()*topics.length)];
+    }
+
+    const {titolo, testo} = await fetchWikiExtract(topicDaCercare);
+    onStatus("📖 Genero domande dal testo…");
+    await new Promise(r=>setTimeout(r,300));
+
+    const domande = generaDomandeWiki(titolo, testo, livello, materia);
+    if(domande && domande.length>=3) {
+      return {domande, fonte:"wiki", titolo};
+    }
+    throw new Error("domande insufficienti");
+
+  } catch(e) {
+    // 2. Fallback locale
+    onStatus("📚 Uso domande locali…");
+    await new Promise(r=>setTimeout(r,300));
+    const pool = QUIZ_DB[materia] || QUIZ_DB.altra;
+    let filtrate;
+    if(livello<=2)       filtrate = pool.filter(q=>q.lv===1);
+    else if(livello===3) filtrate = pool.filter(q=>q.lv<=2);
+    else                 filtrate = pool.filter(q=>q.lv>=2);
+    if(filtrate.length<3) filtrate = pool;
+    const domande = [...filtrate].sort(()=>Math.random()-0.5).slice(0,5).map(q=>({
+      domanda:q.d, risposte:[...q.r].sort(()=>Math.random()-0.5), corretta:q.c, scelta:null, daWiki:false
+    }));
+    return {domande, fonte:"locale", titolo:null};
+  }
+}
+
 function EserciziPanel({event,onClose}){
   const {dark}=React.useContext(ThemeCtx);
   const [livello,setLivello]=useState(3);
   const [step,setStep]=useState("livello");
-  const [esercizi,setEsercizi]=useState("");
+  const [domande,setDomande]=useState([]);
+  const [loadMsg,setLoadMsg]=useState("");
+  const [fonte,setFonte]=useState("locale");
+  const [wikiTitolo,setWikiTitolo]=useState(null);
   const [vis,setVis]=useState(false);
   useEffect(()=>{requestAnimationFrame(()=>setVis(true))},[]);
   const close=()=>{setVis(false);setTimeout(onClose,320)};
@@ -304,79 +1185,171 @@ function EserciziPanel({event,onClose}){
   const txt=dark?"#fff":"#1C1C1E";
   const sub=dark?"rgba(255,255,255,0.4)":"rgba(60,60,67,0.45)";
   const livelli=["😴 Per niente","😟 Poco","😐 Abbastanza","😊 Bene","🔥 Pronto!"];
+  const livelloLabel=["Facile","Facile","Medio","Difficile","Difficile"];
+
   const genera=async()=>{
     setStep("loading");
-    const mat=event.materia?(MATERIE.find(m=>m.id===event.materia)?.label||event.customMateria):"la materia";
-    const arg=event.argomento||"";
-    const tipo=event.tipoVerifica||"verifica";
-    const prompt=`Sei un tutor scolastico italiano. Uno studente ha una ${tipo} di ${mat}${arg?` sull'argomento "${arg}"`:""}. Si sente preparato: ${livelli[livello-1]}.
-Crea un piano di ripasso con 3-4 esercizi pratici, suggerimenti su cosa ripassare e un consiglio motivazionale. Sii conciso e usa emoji. Rispondi in italiano.`;
-    try{
-      const r=await callAI(prompt);
-      setEsercizi(r);
-      setStep("esercizi");
-    }catch(e){
-      if(e.message==="NO_KEY")setStep("setup");
-      else{setEsercizi("⚠️ "+e.message);setStep("esercizi");}
-    }
+    setLoadMsg("⏳ Preparo…");
+    const {domande:d, fonte:f, titolo:t} = await getDomandeIbride(
+      event.materia||"altra",
+      event.argomento||"",
+      livello,
+      msg=>setLoadMsg(msg)
+    );
+    setDomande(d);
+    setFonte(f);
+    setWikiTitolo(t);
+    setStep("quiz");
   };
+
+  const rispondi=(iDom,scelta)=>{
+    setDomande(prev=>prev.map((d,i)=>i===iDom?{...d,scelta}:d));
+  };
+
+  const punteggio=domande.filter(d=>d.scelta===d.corretta).length;
+  const tutteRisposte=domande.length>0&&domande.every(d=>d.scelta!==null);
+
   return (
     <div onClick={e=>e.target===e.currentTarget&&close()} style={{position:"fixed",inset:0,zIndex:600,background:vis?"rgba(0,0,0,0.5)":"rgba(0,0,0,0)",backdropFilter:"blur(8px)",transition:"background 0.3s",display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
-      <div style={{background:bg,borderRadius:"20px 20px 0 0",maxHeight:"90vh",display:"flex",flexDirection:"column",transform:vis?"translateY(0)":"translateY(100%)",transition:"transform 0.4s cubic-bezier(0.32,0.72,0,1)",paddingBottom:"env(safe-area-inset-bottom,24px)"}}>
+      <div style={{background:bg,borderRadius:"20px 20px 0 0",maxHeight:"92vh",display:"flex",flexDirection:"column",transform:vis?"translateY(0)":"translateY(100%)",transition:"transform 0.4s cubic-bezier(0.32,0.72,0,1)",paddingBottom:"env(safe-area-inset-bottom,24px)"}}>
         <div style={{display:"flex",justifyContent:"center",padding:"10px 0 0"}}><div style={{width:"36px",height:"4px",background:dark?"rgba(255,255,255,0.15)":"rgba(60,60,67,0.15)",borderRadius:"2px"}}/></div>
         <div style={{padding:"14px 20px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
           <div>
-            <div style={{fontSize:"20px",fontWeight:"700",color:txt}}>🧠 Ripasso AI</div>
+            <div style={{fontSize:"20px",fontWeight:"700",color:txt}}>🧠 Ripasso</div>
             <div style={{fontSize:"13px",color:sub,marginTop:"2px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"240px"}}>{event.title}</div>
           </div>
           <button onClick={close} style={{background:dark?"rgba(255,255,255,0.1)":"rgba(60,60,67,0.1)",border:"none",borderRadius:"50%",width:"30px",height:"30px",cursor:"pointer",color:sub,fontSize:"18px",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
         </div>
+
         <div style={{overflowY:"auto",flex:1,padding:"0 16px 16px"}}>
-          {step==="setup"&&<GeminiSetup dark={dark} onDone={()=>setStep("livello")} onClose={close}/>}
+
           {step==="livello"&&(
             <div style={{animation:"fadeUp 0.2s ease"}}>
-              <div style={{background:card,borderRadius:"16px",padding:"16px",marginBottom:"16px"}}>
-                <div style={{fontSize:"14px",fontWeight:"600",color:txt,marginBottom:"12px"}}>Come ti senti preparato?</div>
+              <div style={{background:card,borderRadius:"16px",padding:"16px",marginBottom:"12px"}}>
+                <div style={{fontSize:"14px",fontWeight:"600",color:txt,marginBottom:"4px"}}>Come ti senti preparato?</div>
+                <div style={{fontSize:"12px",color:sub,marginBottom:"12px"}}>Le domande cambiano ogni volta 🔄</div>
                 <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
                   {livelli.map((l,i)=>(
                     <div key={i} onClick={()=>setLivello(i+1)} style={{padding:"12px 16px",borderRadius:"12px",border:`2px solid ${livello===i+1?"#FF3B30":"transparent"}`,background:livello===i+1?"rgba(255,59,48,0.1)":dark?"rgba(255,255,255,0.05)":"rgba(60,60,67,0.04)",cursor:"pointer",display:"flex",alignItems:"center",gap:"12px"}}>
                       <span style={{fontSize:"20px"}}>{l.split(" ")[0]}</span>
-                      <span style={{fontSize:"15px",fontWeight:livello===i+1?"600":"400",color:livello===i+1?"#FF3B30":txt}}>{l.split(" ").slice(1).join(" ")}</span>
-                      {livello===i+1&&<div style={{marginLeft:"auto",width:"20px",height:"20px",borderRadius:"50%",background:"#FF3B30",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:"#fff",fontSize:"12px"}}>✓</span></div>}
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:"15px",fontWeight:livello===i+1?"600":"400",color:livello===i+1?"#FF3B30":txt}}>{l.split(" ").slice(1).join(" ")}</div>
+                        <div style={{fontSize:"11px",color:sub,marginTop:"1px"}}>Domande {livelloLabel[i]}</div>
+                      </div>
+                      {livello===i+1&&<div style={{width:"20px",height:"20px",borderRadius:"50%",background:"#FF3B30",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:"#fff",fontSize:"12px"}}>✓</span></div>}
                     </div>
                   ))}
                 </div>
               </div>
-              <button onClick={genera} style={{width:"100%",padding:"15px",borderRadius:"14px",border:"none",background:"#FF3B30",color:"#fff",fontFamily:"inherit",fontSize:"16px",fontWeight:"600",cursor:"pointer"}}>Genera piano di ripasso ✨</button>
-            </div>
-          )}
-          {step==="loading"&&(
-            <div style={{textAlign:"center",padding:"50px 0"}}>
-              <div style={{fontSize:"40px",marginBottom:"16px"}} className="pulse">🧠</div>
-              <div style={{fontSize:"15px",fontWeight:"600",color:txt}}>L'AI sta preparando il tuo piano…</div>
-            </div>
-          )}
-          {step==="esercizi"&&(
-            <div style={{animation:"fadeUp 0.2s ease"}}>
-              <div style={{background:card,borderRadius:"16px",padding:"16px",marginBottom:"16px"}}>
-                <div style={{fontSize:"14px",lineHeight:1.6,color:txt,whiteSpace:"pre-wrap"}}>{esercizi}</div>
+              <div style={{display:"flex",gap:"6px",marginBottom:"10px"}}>
+                <div style={{flex:1,background:dark?"rgba(52,199,89,0.12)":"rgba(52,199,89,0.08)",borderRadius:"10px",padding:"8px",textAlign:"center"}}>
+                  <div style={{fontSize:"16px"}}>🌐</div>
+                  <div style={{fontSize:"11px",color:"#34C759",fontWeight:"600",marginTop:"2px"}}>Wikipedia</div>
+                  <div style={{fontSize:"10px",color:sub}}>con internet</div>
+                </div>
+                <div style={{flex:1,background:dark?"rgba(255,149,0,0.12)":"rgba(255,149,0,0.08)",borderRadius:"10px",padding:"8px",textAlign:"center"}}>
+                  <div style={{fontSize:"16px"}}>📚</div>
+                  <div style={{fontSize:"11px",color:"#FF9500",fontWeight:"600",marginTop:"2px"}}>Locale</div>
+                  <div style={{fontSize:"10px",color:sub}}>senza internet</div>
+                </div>
               </div>
-              <button onClick={()=>setStep("livello")} style={{width:"100%",padding:"14px",borderRadius:"14px",border:`2px solid ${dark?"rgba(255,255,255,0.1)":"rgba(60,60,67,0.1)"}`,background:"transparent",color:txt,fontFamily:"inherit",fontSize:"15px",fontWeight:"600",cursor:"pointer",marginBottom:"8px"}}>Rigenera piano ↺</button>
-              <button onClick={close} style={{width:"100%",padding:"14px",borderRadius:"14px",border:"none",background:"#007AFF",color:"#fff",fontFamily:"inherit",fontSize:"15px",fontWeight:"600",cursor:"pointer"}}>OK, ho capito! 💪</button>
+              <button onClick={genera} style={{width:"100%",padding:"15px",borderRadius:"14px",border:"none",background:"#FF3B30",color:"#fff",fontFamily:"inherit",fontSize:"16px",fontWeight:"600",cursor:"pointer"}}>
+                Inizia il quiz ✨
+              </button>
             </div>
           )}
+
+          {step==="loading"&&(
+            <div style={{textAlign:"center",padding:"60px 0"}}>
+              <div style={{fontSize:"44px",marginBottom:"16px"}} className="pulse">🧠</div>
+              <div style={{fontSize:"15px",fontWeight:"600",color:txt,marginBottom:"6px"}}>{loadMsg}</div>
+              <div style={{fontSize:"12px",color:sub}}>Qualche secondo…</div>
+            </div>
+          )}
+
+          {step==="quiz"&&(
+            <div style={{animation:"fadeUp 0.2s ease"}}>
+              {/* Badge fonte */}
+              <div style={{background:fonte==="wiki"?(dark?"rgba(52,199,89,0.12)":"rgba(52,199,89,0.08)"):(dark?"rgba(255,149,0,0.12)":"rgba(255,149,0,0.08)"),borderRadius:"10px",padding:"8px 12px",marginBottom:"12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span style={{fontSize:"12px",color:fonte==="wiki"?"#34C759":"#FF9500",fontWeight:"600"}}>
+                  {fonte==="wiki"?`🌐 Da Wikipedia: "${wikiTitolo}"`:"📚 Domande locali"}
+                </span>
+                <span style={{fontSize:"12px",color:sub}}>{livelloLabel[livello-1]}</span>
+              </div>
+
+              {/* Domande */}
+              {domande.map((d,i)=>(
+                <div key={i} style={{background:card,borderRadius:"16px",padding:"16px",marginBottom:"12px"}}>
+                  <div style={{fontSize:"11px",fontWeight:"700",color:sub,marginBottom:"6px",letterSpacing:"0.05em"}}>DOMANDA {i+1} / {domande.length}</div>
+                  <div style={{fontSize:"15px",fontWeight:"600",color:txt,marginBottom:"14px",lineHeight:1.5}}>{d.domanda}</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
+                    {d.risposte.map((r,j)=>{
+                      const risp=d.scelta;
+                      const isC=r===d.corretta, isS=r===risp;
+                      let bgR=dark?"rgba(255,255,255,0.06)":"rgba(60,60,67,0.06)";
+                      let bord="2px solid transparent";
+                      let colR=txt;
+                      if(risp!==null){
+                        if(isC){bgR="rgba(52,199,89,0.15)";bord="2px solid #34C759";colR="#34C759";}
+                        else if(isS){bgR="rgba(255,59,48,0.12)";bord="2px solid #FF3B30";colR="#FF3B30";}
+                      }
+                      return (
+                        <div key={j} onClick={()=>risp===null&&rispondi(i,r)}
+                          style={{padding:"11px 14px",borderRadius:"12px",border:bord,background:bgR,cursor:risp===null?"pointer":"default",display:"flex",alignItems:"center",gap:"10px",transition:"all 0.15s"}}>
+                          <div style={{width:"24px",height:"24px",borderRadius:"50%",background:risp!==null?(isC?"#34C759":isS?"#FF3B30":dark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.06)"):"rgba(0,122,255,0.1)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:"11px",fontWeight:"700",color:risp!==null?(isC||isS?"#fff":"#888"):"#007AFF"}}>
+                            {risp!==null?(isC?"✓":isS?"✗":String.fromCharCode(65+j)):String.fromCharCode(65+j)}
+                          </div>
+                          <span style={{fontSize:"14px",color:colR,fontWeight:(isS||isC)&&risp!==null?"600":"400",lineHeight:1.3,flex:1}}>{r}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {d.scelta!==null&&(
+                    <div style={{marginTop:"10px",padding:"8px 12px",borderRadius:"10px",background:d.scelta===d.corretta?"rgba(52,199,89,0.1)":"rgba(255,59,48,0.08)"}}>
+                      <span style={{fontSize:"13px",fontWeight:"600",color:d.scelta===d.corretta?"#34C759":"#FF3B30"}}>
+                        {d.scelta===d.corretta?"✅ Corretto! Ottimo!":"❌ Risposta esatta: "+d.corretta}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Risultato finale */}
+              {tutteRisposte&&(
+                <div style={{background:card,borderRadius:"16px",padding:"20px",marginBottom:"12px",textAlign:"center",border:`2px solid ${punteggio===domande.length?"#34C759":punteggio>=domande.length*0.6?"#FF9500":"#FF3B30"}`}}>
+                  <div style={{fontSize:"40px",marginBottom:"8px"}}>{punteggio===domande.length?"🏆":punteggio>=domande.length*0.6?"⭐":"💪"}</div>
+                  <div style={{fontSize:"26px",fontWeight:"700",color:txt,letterSpacing:"-0.5px"}}>{punteggio}/{domande.length}</div>
+                  <div style={{fontSize:"14px",color:sub,marginTop:"4px",marginBottom:punteggio<domande.length?"10px":"0"}}>
+                    {punteggio===domande.length?"Perfetto! Sei pronto per la verifica! 🎯":
+                     punteggio>=domande.length*0.6?"Bene! Ripassa i punti sbagliati":"Studia ancora, poi riprova!"}
+                  </div>
+                  {punteggio<domande.length&&(
+                    <div style={{fontSize:"12px",color:"#FF9500",fontWeight:"600",background:"rgba(255,149,0,0.1)",borderRadius:"8px",padding:"6px 10px"}}>
+                      💡 Rileggi le risposte verdi — sono quelle corrette
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{display:"flex",gap:"8px"}}>
+                <button onClick={()=>{setDomande([]);setStep("livello");}} style={{flex:1,padding:"13px",borderRadius:"14px",border:`2px solid ${dark?"rgba(255,255,255,0.1)":"rgba(60,60,67,0.1)"}`,background:"transparent",color:txt,fontFamily:"inherit",fontSize:"14px",fontWeight:"600",cursor:"pointer"}}>↺ Nuovo quiz</button>
+                <button onClick={close} style={{flex:1,padding:"13px",borderRadius:"14px",border:"none",background:"#FF3B30",color:"#fff",fontFamily:"inherit",fontSize:"14px",fontWeight:"600",cursor:"pointer"}}>Fine 🎯</button>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     </div>
   );
 }
 
-function ListaSpesaPanel({event,onClose}){
+// ── AI PANEL: LISTA SPESA ─────────────────────────────────────────────────────
+function ListaSpesaPanel({event,onClose,onSaveNote}){
   const {dark}=React.useContext(ThemeCtx);
   const [piatti,setPiatti]=useState("");
   const [step,setStep]=useState("input");
   const [lista,setLista]=useState([]);
-  const [checked,setChecked]=useState({});
   const [vis,setVis]=useState(false);
   useEffect(()=>{requestAnimationFrame(()=>setVis(true))},[]);
   const close=()=>{setVis(false);setTimeout(onClose,320)};
@@ -384,86 +1357,95 @@ function ListaSpesaPanel({event,onClose}){
   const card=dark?"#2C2C2E":"#fff";
   const txt=dark?"#fff":"#1C1C1E";
   const sub=dark?"rgba(255,255,255,0.4)":"rgba(60,60,67,0.45)";
-  const toggle=n=>setChecked(p=>({...p,[n]:!p[n]}));
-  const genera=async()=>{
+
+  const genera=()=>{
     if(!piatti.trim())return;
     setStep("loading");
-    const prompt=`Sei un assistente per la spesa. L'utente vuole cucinare: "${piatti}".
-Crea una lista della spesa completa. Per ogni ingrediente metti quantità per 2-4 persone e categoria emoji (🥩🥬🍎🥛🥫🧁).
-Aggiungi 3-5 suggerimenti extra utili.
-Rispondi SOLO con JSON puro senza backtick:
-{"lista":[{"nome":"...","quantita":"...","categoria":"..."}],"suggerimenti":[{"nome":"...","motivo":"..."}]}`;
-    try{
-      const r=await callAI(prompt);
-      const clean=r.replace(/```json|```/g,"").trim();
-      const parsed=JSON.parse(clean);
-      setLista(parsed);
+    setTimeout(()=>{
+      const result=generaListaSpesaOffline(piatti);
+      setLista(result);
       setStep("lista");
-    }catch(e){
-      if(e.message==="NO_KEY")setStep("setup");
-      else{setStep("input");alert("Errore: "+e.message);}
-    }
+    },700);
   };
+
+  const [checked,setChecked]=useState({});
+  const toggle=n=>setChecked(p=>({...p,[n]:!p[n]}));
+
   return (
     <div onClick={e=>e.target===e.currentTarget&&close()} style={{position:"fixed",inset:0,zIndex:600,background:vis?"rgba(0,0,0,0.5)":"rgba(0,0,0,0)",backdropFilter:"blur(8px)",transition:"background 0.3s",display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
       <div style={{background:bg,borderRadius:"20px 20px 0 0",maxHeight:"90vh",display:"flex",flexDirection:"column",transform:vis?"translateY(0)":"translateY(100%)",transition:"transform 0.4s cubic-bezier(0.32,0.72,0,1)",paddingBottom:"env(safe-area-inset-bottom,24px)"}}>
         <div style={{display:"flex",justifyContent:"center",padding:"10px 0 0"}}><div style={{width:"36px",height:"4px",background:dark?"rgba(255,255,255,0.15)":"rgba(60,60,67,0.15)",borderRadius:"2px"}}/></div>
         <div style={{padding:"14px 20px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
-          <div style={{fontSize:"20px",fontWeight:"700",color:txt}}>🛒 Lista della spesa</div>
+          <div>
+            <div style={{fontSize:"20px",fontWeight:"700",color:txt,letterSpacing:"-0.3px"}}>🛒 Lista della spesa</div>
+            <div style={{fontSize:"13px",color:sub,marginTop:"2px"}}>Generata dall'AI</div>
+          </div>
           <button onClick={close} style={{background:dark?"rgba(255,255,255,0.1)":"rgba(60,60,67,0.1)",border:"none",borderRadius:"50%",width:"30px",height:"30px",cursor:"pointer",color:sub,fontSize:"18px",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
         </div>
+
         <div style={{overflowY:"auto",flex:1,padding:"0 16px 16px"}}>
-          {step==="setup"&&<GeminiSetup dark={dark} onDone={()=>setStep("input")} onClose={close}/>}
+          
           {step==="input"&&(
             <div style={{animation:"fadeUp 0.2s ease"}}>
               <div style={{background:card,borderRadius:"16px",padding:"16px",marginBottom:"16px"}}>
                 <div style={{fontSize:"14px",fontWeight:"600",color:txt,marginBottom:"10px"}}>Cosa vuoi cucinare? 🍳</div>
-                <textarea value={piatti} onChange={e=>setPiatti(e.target.value)} placeholder="Es. pasta al pomodoro, pollo arrosto…" style={{width:"100%",minHeight:"80px",border:"none",background:dark?"rgba(255,255,255,0.06)":"rgba(60,60,67,0.06)",borderRadius:"12px",padding:"12px",fontSize:"15px",fontFamily:"inherit",color:txt,outline:"none",resize:"none",display:"block",userSelect:"text"}}/>
+                <textarea value={piatti} onChange={e=>setPiatti(e.target.value)} placeholder="Es. pasta al pomodoro, insalata di pollo, tiramisu…" style={{width:"100%",minHeight:"80px",border:"none",background:dark?"rgba(255,255,255,0.06)":"rgba(60,60,67,0.06)",borderRadius:"12px",padding:"12px",fontSize:"15px",fontFamily:"inherit",color:txt,outline:"none",resize:"none",display:"block",userSelect:"text"}}/>
               </div>
-              <button onClick={genera} disabled={!piatti.trim()} style={{width:"100%",padding:"15px",borderRadius:"14px",border:"none",background:piatti.trim()?"#34C759":"rgba(60,60,67,0.1)",color:piatti.trim()?"#fff":"rgba(60,60,67,0.3)",fontFamily:"inherit",fontSize:"16px",fontWeight:"600",cursor:piatti.trim()?"pointer":"default"}}>Genera lista 🛒</button>
+              <button onClick={genera} disabled={!piatti.trim()} style={{width:"100%",padding:"15px",borderRadius:"14px",border:"none",background:piatti.trim()?"#34C759":"rgba(60,60,67,0.1)",color:piatti.trim()?"#fff":"rgba(60,60,67,0.3)",fontFamily:"inherit",fontSize:"16px",fontWeight:"600",cursor:piatti.trim()?"pointer":"default"}}>
+                Genera lista 🛒
+              </button>
             </div>
           )}
+
           {step==="loading"&&(
             <div style={{textAlign:"center",padding:"50px 0"}}>
               <div style={{fontSize:"40px",marginBottom:"16px"}} className="pulse">🛒</div>
-              <div style={{fontSize:"15px",fontWeight:"600",color:txt}}>Preparo la lista…</div>
+              <div style={{fontSize:"15px",fontWeight:"600",color:txt,marginBottom:"8px"}}>Preparo la lista…</div>
+              <div style={{fontSize:"13px",color:sub}}>Sto pensando agli ingredienti</div>
             </div>
           )}
+
           {step==="lista"&&lista.lista&&(
             <div style={{animation:"fadeUp 0.2s ease"}}>
+              {/* Lista principale */}
               <div style={{background:card,borderRadius:"16px",overflow:"hidden",marginBottom:"12px"}}>
-                <div style={{padding:"12px 16px",borderBottom:`1px solid ${dark?"rgba(255,255,255,0.08)":"rgba(60,60,67,0.08)"}`,display:"flex",justifyContent:"space-between"}}>
-                  <span style={{fontSize:"13px",fontWeight:"700",color:sub}}>DA COMPRARE</span>
+                <div style={{padding:"12px 16px",borderBottom:`1px solid ${dark?"rgba(255,255,255,0.08)":"rgba(60,60,67,0.08)"}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span style={{fontSize:"13px",fontWeight:"700",color:sub,letterSpacing:"0.04em"}}>DA COMPRARE</span>
                   <span style={{fontSize:"12px",color:sub}}>{Object.values(checked).filter(Boolean).length}/{lista.lista.length}</span>
                 </div>
                 {lista.lista.map((item,i)=>(
-                  <div key={i} onClick={()=>toggle(item.nome)} style={{padding:"11px 16px",display:"flex",alignItems:"center",gap:"12px",borderBottom:i<lista.lista.length-1?`1px solid ${dark?"rgba(255,255,255,0.06)":"rgba(60,60,67,0.06)"}`:""  ,cursor:"pointer"}}>
+                  <div key={i} onClick={()=>toggle(item.nome)} style={{padding:"11px 16px",display:"flex",alignItems:"center",gap:"12px",borderBottom:i<lista.lista.length-1?`1px solid ${dark?"rgba(255,255,255,0.06)":"rgba(60,60,67,0.06)"}`:"none",cursor:"pointer",background:checked[item.nome]?(dark?"rgba(255,255,255,0.03)":"rgba(60,60,67,0.02)"):"transparent"}}>
                     <div style={{width:"22px",height:"22px",borderRadius:"50%",border:`2px solid ${checked[item.nome]?"#34C759":"rgba(60,60,67,0.25)"}`,background:checked[item.nome]?"#34C759":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s"}}>
                       {checked[item.nome]&&<span style={{color:"#fff",fontSize:"12px",fontWeight:"700"}}>✓</span>}
                     </div>
-                    <span style={{flex:1,fontSize:"15px",fontWeight:"500",color:checked[item.nome]?sub:txt,textDecoration:checked[item.nome]?"line-through":"none"}}>{item.categoria} {item.nome}</span>
+                    <div style={{flex:1}}>
+                      <span style={{fontSize:"15px",fontWeight:"500",color:checked[item.nome]?sub:txt,textDecoration:checked[item.nome]?"line-through":"none"}}>{item.categoria} {item.nome}</span>
+                    </div>
                     <span style={{fontSize:"12px",color:sub}}>{item.quantita}</span>
                   </div>
                 ))}
               </div>
+
+              {/* Suggerimenti */}
               {lista.suggerimenti?.length>0&&(
                 <div style={{marginBottom:"12px"}}>
-                  <div style={{fontSize:"11px",fontWeight:"600",color:sub,marginBottom:"8px",paddingLeft:"4px"}}>POTRESTI AGGIUNGERE</div>
+                  <div style={{fontSize:"11px",fontWeight:"600",color:sub,letterSpacing:"0.05em",marginBottom:"8px",paddingLeft:"4px"}}>POTRESTI AGGIUNGERE</div>
                   <div style={{background:card,borderRadius:"16px",overflow:"hidden"}}>
                     {lista.suggerimenti.map((s,i)=>(
-                      <div key={i} onClick={()=>toggle("s_"+s.nome)} style={{padding:"11px 16px",display:"flex",alignItems:"center",gap:"12px",borderBottom:i<lista.suggerimenti.length-1?`1px solid ${dark?"rgba(255,255,255,0.06)":"rgba(60,60,67,0.06)"}`:""  ,cursor:"pointer"}}>
-                        <div style={{width:"22px",height:"22px",borderRadius:"50%",border:`2px solid ${checked["s_"+s.nome]?"#34C759":"rgba(52,199,89,0.4)"}`,background:checked["s_"+s.nome]?"#34C759":"rgba(52,199,89,0.08)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                          {checked["s_"+s.nome]?<span style={{color:"#fff",fontSize:"12px"}}>✓</span>:<span style={{color:"#34C759",fontSize:"14px"}}>+</span>}
+                      <div key={i} onClick={()=>toggle("sugg_"+s.nome)} style={{padding:"11px 16px",display:"flex",alignItems:"center",gap:"12px",borderBottom:i<lista.suggerimenti.length-1?`1px solid ${dark?"rgba(255,255,255,0.06)":"rgba(60,60,67,0.06)"}`:"none",cursor:"pointer"}}>
+                        <div style={{width:"22px",height:"22px",borderRadius:"50%",border:`2px solid ${checked["sugg_"+s.nome]?"#34C759":"rgba(52,199,89,0.4)"}`,background:checked["sugg_"+s.nome]?"#34C759":"rgba(52,199,89,0.08)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                          {checked["sugg_"+s.nome]?<span style={{color:"#fff",fontSize:"12px"}}>✓</span>:<span style={{color:"#34C759",fontSize:"14px"}}>+</span>}
                         </div>
                         <div style={{flex:1}}>
                           <div style={{fontSize:"14px",fontWeight:"500",color:txt}}>{s.nome}</div>
-                          <div style={{fontSize:"11px",color:sub}}>{s.motivo}</div>
+                          <div style={{fontSize:"11px",color:sub,marginTop:"1px"}}>{s.motivo}</div>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+
               <div style={{display:"flex",gap:"8px"}}>
                 <button onClick={()=>{setStep("input");setChecked({});}} style={{flex:1,padding:"13px",borderRadius:"14px",border:`2px solid ${dark?"rgba(255,255,255,0.1)":"rgba(60,60,67,0.1)"}`,background:"transparent",color:txt,fontFamily:"inherit",fontSize:"14px",fontWeight:"600",cursor:"pointer"}}>↺ Ricomincia</button>
                 <button onClick={close} style={{flex:1,padding:"13px",borderRadius:"14px",border:"none",background:"#34C759",color:"#fff",fontFamily:"inherit",fontSize:"14px",fontWeight:"600",cursor:"pointer"}}>✓ Fatto!</button>
@@ -476,31 +1458,40 @@ Rispondi SOLO con JSON puro senza backtick:
   );
 }
 
+// ── NOTE VOCALI ───────────────────────────────────────────────────────────────
 function VoiceNoteBtn({onNote}){
   const {dark}=React.useContext(ThemeCtx);
   const [recording,setRecording]=useState(false);
   const [supported]=useState(()=>'SpeechRecognition' in window||'webkitSpeechRecognition' in window);
   const recRef=useRef(null);
+
   const start=()=>{
-    if(!supported)return;
+    if(!supported)return alert("Il riconoscimento vocale non è supportato su questo browser.");
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     const rec=new SR();
-    rec.lang="it-IT";rec.continuous=false;rec.interimResults=false;
-    rec.onresult=e=>onNote(e.results[0][0].transcript);
+    rec.lang="it-IT";
+    rec.continuous=false;
+    rec.interimResults=false;
+    rec.onresult=e=>{const text=e.results[0][0].transcript;onNote(text);};
     rec.onend=()=>setRecording(false);
     rec.onerror=()=>setRecording(false);
-    recRef.current=rec;rec.start();setRecording(true);
+    recRef.current=rec;
+    rec.start();
+    setRecording(true);
   };
   const stop=()=>{recRef.current?.stop();setRecording(false);};
+
   if(!supported)return null;
   return (
-    <button onClick={recording?stop:start} style={{background:recording?"#FF3B30":"rgba(60,60,67,0.08)",border:"none",borderRadius:"20px",padding:"7px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",fontWeight:"600",color:recording?"#fff":dark?"#fff":"#1C1C1E",display:"flex",alignItems:"center",gap:"6px"}}>
+    <button onClick={recording?stop:start} style={{background:recording?"#FF3B30":"rgba(60,60,67,0.08)",border:"none",borderRadius:"20px",padding:"7px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",fontWeight:"600",color:recording?"#fff":dark?"#fff":"#1C1C1E",display:"flex",alignItems:"center",gap:"6px",transition:"all 0.2s"}}>
       {recording?<><span className="pulse">🔴</span>Stop</>:<><span>🎤</span>Voce</>}
     </button>
   );
 }
 
+// ── ALERTS PANEL ──────────────────────────────────────────────────────────────
 function AlertsPanel({alerts,onClose,onGo}){
+  const {dark}=React.useContext(ThemeCtx);
   const [vis,setVis]=useState(false);
   useEffect(()=>{requestAnimationFrame(()=>setVis(true))},[]);
   const close=()=>{setVis(false);setTimeout(onClose,320)};
@@ -511,7 +1502,7 @@ function AlertsPanel({alerts,onClose,onGo}){
         <div style={{display:"flex",justifyContent:"center",padding:"10px 0 0"}}><div style={{width:"36px",height:"4px",background:"rgba(255,255,255,0.15)",borderRadius:"2px"}}/></div>
         <div style={{padding:"16px 20px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div>
-            <div style={{fontSize:"22px",fontWeight:"700",color:"#fff"}}>Promemoria</div>
+            <div style={{fontSize:"22px",fontWeight:"700",color:"#fff",letterSpacing:"-0.5px"}}>Promemoria</div>
             <div style={{fontSize:"13px",color:"rgba(255,255,255,0.35)",marginTop:"2px"}}>{alerts.length} avvisi</div>
           </div>
           <button onClick={close} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:"50%",width:"30px",height:"30px",cursor:"pointer",color:"rgba(255,255,255,0.5)",fontSize:"16px",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
@@ -525,12 +1516,13 @@ function AlertsPanel({alerts,onClose,onGo}){
                 <div style={{width:"40px",height:"40px",borderRadius:"12px",background:s.color+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"20px",flexShrink:0}}>{a.icon}</div>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:"flex",gap:"6px",alignItems:"center",marginBottom:"3px"}}>
-                    <span style={{fontSize:"10px",fontWeight:"700",color:s.color}}>{s.label}</span>
+                    <span style={{fontSize:"10px",fontWeight:"700",color:s.color,letterSpacing:"0.05em"}}>{s.label}</span>
                     <span style={{fontSize:"11px",color:"rgba(255,255,255,0.3)"}}>· {dl}</span>
                   </div>
                   <div style={{fontWeight:"600",fontSize:"14px",color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.e.title}</div>
                   <div style={{fontSize:"12px",color:"rgba(255,255,255,0.35)",marginTop:"2px"}}>{a.msg}</div>
                 </div>
+                <span style={{color:"rgba(255,255,255,0.2)",fontSize:"16px"}}>›</span>
               </div>
             );
           })}
@@ -541,6 +1533,7 @@ function AlertsPanel({alerts,onClose,onGo}){
   );
 }
 
+// ── MODAL EVENTO ──────────────────────────────────────────────────────────────
 function Modal({dayKey,onClose,onSave,editEvent}){
   const {dark}=React.useContext(ThemeCtx);
   const [step,setStep]=useState(editEvent?"details":"category");
@@ -566,11 +1559,13 @@ function Modal({dayKey,onClose,onSave,editEvent}){
   const sub=dark?"rgba(255,255,255,0.4)":"rgba(60,60,67,0.45)";
   const steps=cat==="verifica"?["category","materia","argomento","details"]:cat==="compleanno"?["category","compleanno","details"]:["category","suggerimenti","details"];
   const si=steps.indexOf(step);
+
   const SUGG_MAP={
     commissione:[{label:"Fare la spesa",emoji:"🛒"},{label:"Farmacia",emoji:"💊"},{label:"Pagare bollette",emoji:"💰"},{label:"Posta",emoji:"📮"},{label:"Ritirare pacco",emoji:"📦"},{label:"Banca / ATM",emoji:"🏦"},{label:"Meccanico",emoji:"🔧"},{label:"Shopping",emoji:"🛍️"},{label:"Veterinario",emoji:"🐾"},{label:"Referti medici",emoji:"📋"},{label:"Altro",emoji:"✏️"}],
     appuntamento:[{label:"Medico",emoji:"👨‍⚕️"},{label:"Dentista",emoji:"🦷"},{label:"Specialista",emoji:"🏥"},{label:"Fisioterapia",emoji:"💆"},{label:"Analisi sangue",emoji:"🩸"},{label:"Oculista",emoji:"👁️"},{label:"Colloquio scuola",emoji:"🏫"},{label:"Riunione",emoji:"💼"},{label:"Colloquio lavoro",emoji:"👔"},{label:"Parrucchiere",emoji:"✂️"},{label:"Altro",emoji:"✏️"}],
     todo:[{label:"Studiare",emoji:"📚"},{label:"Fare sport",emoji:"🏃"},{label:"Chiamare qualcuno",emoji:"📞"},{label:"Pulire casa",emoji:"🧹"},{label:"Lavanderia",emoji:"👕"},{label:"Cucinare",emoji:"🍳"},{label:"Leggere",emoji:"📖"},{label:"Organizzare",emoji:"🗂️"},{label:"Meditare",emoji:"🧘"},{label:"Progetto",emoji:"💡"},{label:"Altro",emoji:"✏️"}],
   };
+
   const buildTitle=()=>{
     if(cat==="verifica"){const m=MATERIE.find(x=>x.id===materia);const ml=materia==="altra"?cMat:m?.label;return arg?`${m?.emoji||"📚"} ${tipo||"Verifica"} ${ml} — ${arg}`:`${m?.emoji||"📚"} ${tipo||"Verifica"} di ${ml}`;}
     if(cat==="compleanno")return `🎂 Compleanno di ${name}${age?` (${age} anni)`:""}`;
@@ -584,6 +1579,7 @@ function Modal({dayKey,onClose,onSave,editEvent}){
   };
   const save=()=>{const t=buildTitle();if(!t.trim())return;onSave({id:editEvent?.id||Date.now(),category:cat,title:t,time,note,materia,customMateria:cMat,argomento:arg,tipoVerifica:tipo,personName:name,personAge:age,selectedSugg:sugg,customTitle:ctitle});close();};
   const go=s=>setStep(s);
+
   return (
     <div onClick={e=>e.target===e.currentTarget&&close()} style={{position:"fixed",inset:0,zIndex:400,background:vis?"rgba(0,0,0,0.4)":"rgba(0,0,0,0)",backdropFilter:"blur(8px)",transition:"all 0.3s",display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
       <div style={{background:bg,borderRadius:"20px 20px 0 0",maxHeight:"92vh",overflowY:"auto",paddingBottom:"env(safe-area-inset-bottom,20px)",transform:vis?"translateY(0)":"translateY(100%)",transition:"transform 0.4s cubic-bezier(0.32,0.72,0,1)"}}>
@@ -591,11 +1587,12 @@ function Modal({dayKey,onClose,onSave,editEvent}){
         <div style={{padding:"14px 20px 10px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div>
             <div style={{fontSize:"12px",color:sub}}>{parseInt(kd)} {MONTHS[parseInt(km)-1]}</div>
-            <div style={{fontSize:"20px",fontWeight:"700",color:txt,marginTop:"2px"}}>{C?`${C.emoji} ${C.label}`:"Nuovo evento"}</div>
+            <div style={{fontSize:"20px",fontWeight:"700",color:txt,letterSpacing:"-0.3px",marginTop:"2px"}}>{C?`${C.emoji} ${C.label}`:"Nuovo evento"}</div>
           </div>
           <button onClick={close} style={{background:dark?"rgba(255,255,255,0.1)":"rgba(60,60,67,0.1)",border:"none",borderRadius:"50%",width:"30px",height:"30px",cursor:"pointer",color:sub,fontSize:"18px",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
         </div>
         {cat&&<div style={{display:"flex",gap:"3px",padding:"0 20px 12px"}}>{steps.map((s,i)=><div key={s} style={{height:"3px",flex:1,borderRadius:"2px",background:i<=si?(C?.color||"#007AFF"):dark?"rgba(255,255,255,0.1)":"rgba(60,60,67,0.1)",transition:"background 0.3s"}}/>)}</div>}
+
         <div style={{padding:"0 16px 20px"}}>
           {step==="category"&&<div style={{animation:"fadeUp 0.2s ease"}}>
             <div style={{fontSize:"13px",color:sub,marginBottom:"10px",paddingLeft:"4px"}}>Seleziona categoria</div>
@@ -614,31 +1611,37 @@ function Modal({dayKey,onClose,onSave,editEvent}){
               </div>
             ))}
           </div>}
+
           {step==="materia"&&<div style={{animation:"fadeUp 0.18s ease"}}>
             <button onClick={()=>go("category")} style={{...BK,color:"#007AFF"}}>‹ Indietro</button>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"8px"}}>
               {MATERIE.map(m=>(
-                <div key={m.id} className="tap" onClick={()=>{setMat(m.id);go("argomento")}} style={{background:materia===m.id?"#007AFF":card,borderRadius:"12px",padding:"12px 8px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:"5px"}}>
+                <div key={m.id} className="tap" onClick={()=>{setMat(m.id);go("argomento")}} style={{background:materia===m.id?"#007AFF":card,borderRadius:"12px",padding:"12px 8px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:"5px",transition:"all 0.15s"}}>
                   <span style={{fontSize:"22px"}}>{m.emoji}</span>
                   <span style={{fontSize:"11px",textAlign:"center",color:materia===m.id?"#fff":txt,fontWeight:"500",lineHeight:1.2}}>{m.label}</span>
                 </div>
               ))}
             </div>
           </div>}
+
           {step==="argomento"&&<div style={{animation:"fadeUp 0.18s ease"}}>
             <button onClick={()=>go("materia")} style={{...BK,color:"#007AFF"}}>‹ Indietro</button>
             {materia==="altra"&&<div style={{background:card,borderRadius:"14px",padding:"4px 16px",marginBottom:"10px"}}><label style={{...LB,color:sub}}>Materia</label><input value={cMat} onChange={e=>setCMat(e.target.value)} placeholder="Es. Diritto…" style={{...IP,color:txt}} autoFocus/></div>}
             <div style={{background:card,borderRadius:"14px",padding:"14px 16px",marginBottom:"10px"}}>
               <label style={{...LB,color:sub}}>Tipo di verifica</label>
-              <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginTop:"8px"}}>{TIPI.map(t=><button key={t} onClick={()=>setTipo(tipo===t?"":t)} style={{padding:"7px 14px",borderRadius:"20px",fontFamily:"inherit",border:"none",background:tipo===t?"#FF3B30":dark?"rgba(255,255,255,0.08)":"rgba(60,60,67,0.08)",color:tipo===t?"#fff":txt,fontSize:"14px",fontWeight:"500",cursor:"pointer"}}>{t}</button>)}</div>
+              <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginTop:"8px"}}>{TIPI.map(t=><button key={t} onClick={()=>setTipo(tipo===t?"":t)} style={{padding:"7px 14px",borderRadius:"20px",fontFamily:"inherit",border:"none",background:tipo===t?"#FF3B30":dark?"rgba(255,255,255,0.08)":"rgba(60,60,67,0.08)",color:tipo===t?"#fff":txt,fontSize:"14px",fontWeight:"500",cursor:"pointer",transition:"all 0.15s"}}>{t}</button>)}</div>
             </div>
             <div style={{background:card,borderRadius:"14px",padding:"4px 16px",marginBottom:"8px"}}>
               <label style={{...LB,color:sub}}>Argomento <span style={{fontWeight:"400",opacity:0.5}}>(opzionale)</span></label>
               <input value={arg} onChange={e=>setArg(e.target.value)} placeholder="Es. Equazioni, Risorgimento…" style={{...IP,color:txt}}/>
             </div>
-            <div style={{display:"flex",gap:"8px",marginBottom:"16px",alignItems:"center"}}><VoiceNoteBtn onNote={v=>setArg(v)}/><span style={{fontSize:"12px",color:sub}}>Ditta l'argomento</span></div>
+            <div style={{display:"flex",gap:"8px",marginBottom:"16px",alignItems:"center"}}>
+              <VoiceNoteBtn onNote={v=>setArg(v)}/>
+              <span style={{fontSize:"12px",color:sub}}>Ditta l'argomento</span>
+            </div>
             <button onClick={()=>ok()&&go("details")} style={{...BB,background:ok()?"#FF3B30":"rgba(60,60,67,0.1)",color:ok()?"#fff":sub}}>Continua</button>
           </div>}
+
           {step==="compleanno"&&<div style={{animation:"fadeUp 0.18s ease"}}>
             <button onClick={()=>go("category")} style={{...BK,color:"#007AFF"}}>‹ Indietro</button>
             <div style={{textAlign:"center",fontSize:"50px",margin:"8px 0 14px"}}>🎂</div>
@@ -646,12 +1649,13 @@ function Modal({dayKey,onClose,onSave,editEvent}){
             <div style={{background:card,borderRadius:"14px",padding:"4px 16px",marginBottom:"16px"}}><label style={{...LB,color:sub}}>Quanti anni?</label><input value={age} onChange={e=>setAge(e.target.value)} placeholder="Es. 18…" style={{...IP,color:txt}} type="number"/></div>
             <button onClick={()=>name.trim()&&go("details")} style={{...BB,background:name.trim()?"#FF9500":"rgba(60,60,67,0.1)",color:name.trim()?"#fff":sub}}>Continua</button>
           </div>}
+
           {step==="suggerimenti"&&<div style={{animation:"fadeUp 0.18s ease"}}>
             <button onClick={()=>go("category")} style={{...BK,color:"#007AFF"}}>‹ Indietro</button>
             <div style={{fontSize:"13px",color:sub,marginBottom:"10px",paddingLeft:"4px"}}>{cat==="commissione"&&"Cosa devi fare?"}{cat==="appuntamento"&&"Che tipo di appuntamento?"}{cat==="todo"&&"Cosa vuoi ricordarti?"}</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"10px"}}>
               {SUGG_MAP[cat]?.map(s=>(
-                <div key={s.label} className="tap" onClick={()=>setSugg(s.label)} style={{background:sugg===s.label?(C?.color||"#007AFF"):card,borderRadius:"12px",padding:"12px",cursor:"pointer",display:"flex",alignItems:"center",gap:"10px"}}>
+                <div key={s.label} className="tap" onClick={()=>setSugg(s.label)} style={{background:sugg===s.label?(C?.color||"#007AFF"):card,borderRadius:"12px",padding:"12px",cursor:"pointer",display:"flex",alignItems:"center",gap:"10px",transition:"all 0.15s"}}>
                   <span style={{fontSize:"20px"}}>{s.emoji}</span>
                   <span style={{fontSize:"13px",fontWeight:"500",color:sugg===s.label?"#fff":txt,lineHeight:1.2}}>{s.label}</span>
                 </div>
@@ -660,15 +1664,19 @@ function Modal({dayKey,onClose,onSave,editEvent}){
             {sugg==="Altro"&&<div style={{background:card,borderRadius:"14px",padding:"4px 16px",marginBottom:"10px"}}><input value={ctitle} onChange={e=>setCtitle(e.target.value)} placeholder="Scrivi cosa devi fare…" style={{...IP,color:txt}} autoFocus/></div>}
             <button onClick={()=>ok()&&go("details")} style={{...BB,background:ok()?(C?.color||"#007AFF"):"rgba(60,60,67,0.1)",color:ok()?"#fff":sub}}>Continua</button>
           </div>}
+
           {step==="details"&&<div style={{animation:"fadeUp 0.18s ease"}}>
             <button onClick={()=>cat==="verifica"?go("argomento"):cat==="compleanno"?go("compleanno"):go("suggerimenti")} style={{...BK,color:"#007AFF"}}>‹ Indietro</button>
             <div style={{background:card,borderRadius:"14px",padding:"14px 16px",marginBottom:"10px",borderLeft:`4px solid ${C?.color||"#007AFF"}`}}>
-              <div style={{fontSize:"11px",color:sub,fontWeight:"600",marginBottom:"4px",textTransform:"uppercase"}}>{C?.label}</div>
+              <div style={{fontSize:"11px",color:sub,fontWeight:"600",marginBottom:"4px",textTransform:"uppercase",letterSpacing:"0.04em"}}>{C?.label}</div>
               <div style={{fontWeight:"600",fontSize:"15px",color:txt}}>{buildTitle()}</div>
             </div>
             <div style={{background:card,borderRadius:"14px",padding:"4px 16px",marginBottom:"10px"}}><label style={{...LB,color:sub}}>Orario</label><input type="time" value={time} onChange={e=>setTime(e.target.value)} style={{...IP,color:txt}}/></div>
             <div style={{background:card,borderRadius:"14px",padding:"4px 16px",marginBottom:"8px"}}><label style={{...LB,color:sub}}>Note</label><textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Aggiungi dettagli…" style={{...IP,color:txt,height:"60px",resize:"none",paddingTop:"8px"}}/></div>
-            <div style={{display:"flex",gap:"8px",marginBottom:"16px",alignItems:"center"}}><VoiceNoteBtn onNote={v=>setNote(v)}/><span style={{fontSize:"12px",color:sub}}>Ditta le note</span></div>
+            <div style={{display:"flex",gap:"8px",marginBottom:"16px",alignItems:"center"}}>
+              <VoiceNoteBtn onNote={v=>setNote(v)}/>
+              <span style={{fontSize:"12px",color:sub}}>Ditta le note</span>
+            </div>
             <button onClick={save} style={{...BB,background:C?.color||"#007AFF"}}>Salva evento</button>
           </div>}
         </div>
@@ -677,6 +1685,7 @@ function Modal({dayKey,onClose,onSave,editEvent}){
   );
 }
 
+// ── DAY SHEET ─────────────────────────────────────────────────────────────────
 function DaySheet({dayKey,events,onAdd,onEdit,onDel,onClose}){
   const {dark}=React.useContext(ThemeCtx);
   const [vis,setVis]=useState(false);
@@ -684,6 +1693,7 @@ function DaySheet({dayKey,events,onAdd,onEdit,onDel,onClose}){
   const [aiType,setAiType]=useState(null);
   const [,km,kd]=dayKey.split("-");
   const isT=dayKey===todayStr;
+  const diff=daysBetween(dayKey);
   useEffect(()=>{requestAnimationFrame(()=>setVis(true))},[]);
   const close=()=>{setVis(false);setTimeout(onClose,320)};
   const bg=dark?"#1C1C1E":"#F2F2F7";
@@ -697,7 +1707,7 @@ function DaySheet({dayKey,events,onAdd,onEdit,onDel,onClose}){
         <div style={{display:"flex",justifyContent:"center",padding:"10px 0 0"}}><div style={{width:"36px",height:"4px",background:dark?"rgba(255,255,255,0.15)":"rgba(60,60,67,0.15)",borderRadius:"2px"}}/></div>
         <div style={{padding:"12px 20px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${dark?"rgba(255,255,255,0.08)":"rgba(60,60,67,0.1)"}`}}>
           <div>
-            <div style={{fontSize:"21px",fontWeight:"700",color:txt,display:"flex",alignItems:"center",gap:"8px"}}>
+            <div style={{fontSize:"21px",fontWeight:"700",color:txt,letterSpacing:"-0.4px",display:"flex",alignItems:"center",gap:"8px"}}>
               {parseInt(kd)} {MONTHS[parseInt(km)-1]}
               {isT&&<span style={{fontSize:"12px",background:"#FF3B30",color:"#fff",padding:"2px 10px",borderRadius:"10px",fontWeight:"600"}}>oggi</span>}
             </div>
@@ -717,7 +1727,7 @@ function DaySheet({dayKey,events,onAdd,onEdit,onDel,onClose}){
               {events.map((ev,i)=>{
                 const c=getCat(ev.category);
                 const evDiff=daysBetween(dayKey);
-                const isSpesa=ev.category==="commissione"&&(ev.selectedSugg==="Fare la spesa"||ev.title?.toLowerCase().includes("spesa"));
+                const showAiBtn=ev.category==="verifica"||(ev.category==="commissione"&&ev.title?.includes("spesa"));
                 return (
                   <div key={ev.id}>
                     <div style={{padding:"12px 14px",display:"flex",alignItems:"center",gap:"12px",borderBottom:`1px solid ${dark?"rgba(255,255,255,0.06)":"rgba(60,60,67,0.06)"}`}}>
@@ -732,10 +1742,19 @@ function DaySheet({dayKey,events,onAdd,onEdit,onDel,onClose}){
                       <button onClick={()=>onEdit(ev)} style={{background:"none",border:"none",cursor:"pointer",color:sub,fontSize:"15px",padding:"4px"}}>✏️</button>
                       <button onClick={()=>onDel(ev.id)} style={{background:"none",border:"none",cursor:"pointer",color:dark?"rgba(255,255,255,0.2)":"rgba(60,60,67,0.2)",fontSize:"20px",padding:"4px"}}>×</button>
                     </div>
-                    {(ev.category==="verifica"||isSpesa)&&(
-                      <div style={{padding:"8px 14px 10px",display:"flex",gap:"8px",borderBottom:i<events.length-1?`1px solid ${dark?"rgba(255,255,255,0.06)":"rgba(60,60,67,0.06)"}`:""  }}>
-                        {ev.category==="verifica"&&<button onClick={()=>{setAiEvent(ev);setAiType("esercizi");}} style={{padding:"6px 12px",borderRadius:"12px",border:"none",background:"rgba(255,59,48,0.1)",color:"#FF3B30",fontSize:"12px",fontWeight:"600",cursor:"pointer",fontFamily:"inherit"}}>🧠 Ripasso AI</button>}
-                        {isSpesa&&<button onClick={()=>{setAiEvent(ev);setAiType("spesa");}} style={{padding:"6px 12px",borderRadius:"12px",border:"none",background:"rgba(52,199,89,0.1)",color:"#34C759",fontSize:"12px",fontWeight:"600",cursor:"pointer",fontFamily:"inherit"}}>🛒 Lista spesa AI</button>}
+                    {/* AI buttons */}
+                    {showAiBtn&&(
+                      <div style={{padding:"8px 14px 10px",display:"flex",gap:"8px",borderBottom:i<events.length-1?`1px solid ${dark?"rgba(255,255,255,0.06)":"rgba(60,60,67,0.06)"}`:"none"}}>
+                        {ev.category==="verifica"&&(
+                          <button onClick={()=>{setAiEvent(ev);setAiType("esercizi");}} style={{padding:"6px 12px",borderRadius:"12px",border:"none",background:"rgba(255,59,48,0.1)",color:"#FF3B30",fontSize:"12px",fontWeight:"600",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:"4px"}}>
+                            🧠 Ripasso AI
+                          </button>
+                        )}
+                        {ev.category==="commissione"&&(ev.selectedSugg==="Fare la spesa"||ev.title?.toLowerCase().includes("spesa"))&&(
+                          <button onClick={()=>{setAiEvent(ev);setAiType("spesa");}} style={{padding:"6px 12px",borderRadius:"12px",border:"none",background:"rgba(52,199,89,0.1)",color:"#34C759",fontSize:"12px",fontWeight:"600",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:"4px"}}>
+                            🛒 Lista spesa AI
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -752,6 +1771,7 @@ function DaySheet({dayKey,events,onAdd,onEdit,onDel,onClose}){
   );
 }
 
+// ── MAIN APP ──────────────────────────────────────────────────────────────────
 function App(){
   const [pref,setPref]=useState(loadPref);
   const [year,setYear]=useState(today.getFullYear());
@@ -765,29 +1785,39 @@ function App(){
   const [showAl,setShowAl]=useState(false);
   const meteo=useMeteo();
   const dark=pref.dark;
+
   const toggleDark=()=>{const np={...pref,dark:!dark};setPref(np);savePref(np);document.body.className=np.dark?"dark":"light";};
   useEffect(()=>{document.body.className=dark?"dark":"light";},[dark]);
   useEffect(()=>{saveEv(events)},[events]);
   useEffect(()=>{const a=getAlerts(events);if(a.length>0)setTimeout(()=>setShowAl(true),700);},[]);
+
   const alerts=getAlerts(events);
   const getDay=k=>events[k]||[];
   const handleSave=ev=>{setEvents(p=>{const d=p[selDay]||[];if(editEv)return{...p,[selDay]:d.map(e=>e.id===ev.id?ev:e)};return{...p,[selDay]:[...d,ev]};});};
   const delEv=(k,id)=>setEvents(p=>({...p,[k]:(p[k]||[]).filter(e=>e.id!==id)}));
+
   const bg=dark?"#000":"#fff";
+  const bgSub=dark?"#1C1C1E":"#F2F2F7";
   const txt=dark?"#fff":"#1C1C1E";
   const sub=dark?"rgba(255,255,255,0.35)":"rgba(60,60,67,0.45)";
   const border=dark?"rgba(255,255,255,0.08)":"rgba(60,60,67,0.1)";
+  const card=dark?"#1C1C1E":"#F2F2F7";
+
   const totM=Object.entries(events).filter(([k])=>k.startsWith(`${year}-${String(month+1).padStart(2,'0')}`)).flatMap(([,e])=>e).length;
   const allEv=Object.entries(events).flatMap(([day,evs])=>evs.map(e=>({...e,day}))).filter(e=>e.day.startsWith(String(year))).filter(e=>!fCat||e.category===fCat).sort((a,b)=>a.day.localeCompare(b.day));
   const upcoming=Object.entries(events).flatMap(([day,evs])=>evs.map(e=>({...e,day}))).filter(e=>e.day>=todayStr).sort((a,b)=>a.day.localeCompare(b.day)).slice(0,5);
   const wDays=Array.from({length:7},(_,i)=>{const d=new Date(),dow=d.getDay()===0?6:d.getDay()-1,dd=new Date(d);dd.setDate(d.getDate()-dow+i);return dd;});
+
   return (
     <ThemeCtx.Provider value={{dark,toggle:toggleDark}}>
-    <div style={{fontFamily:"-apple-system,'SF Pro Text','Helvetica Neue',sans-serif",background:bg,height:"100vh",maxWidth:"430px",margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden",transition:"background 0.3s"}}>
+    <div style={{fontFamily:"-apple-system,'SF Pro Text','Helvetica Neue',sans-serif",background:bg,height:"100vh",maxWidth:"430px",margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden",transition:"background 0.3s,color 0.3s"}}>
+
+      {/* HEADER */}
       <div style={{background:dark?"rgba(0,0,0,0.95)":"rgba(255,255,255,0.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",paddingTop:"env(safe-area-inset-top,44px)",flexShrink:0,borderBottom:`1px solid ${border}`}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 16px 6px"}}>
           <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
             <button className="tap" onClick={()=>{const n=addMonths(year,month,-1);setYear(n.year);setMonth(n.month);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:"24px",color:"#007AFF",padding:"2px 6px",lineHeight:1}}>‹</button>
+            {/* Meteo */}
             {meteo&&<div style={{fontSize:"13px",color:sub,display:"flex",alignItems:"center",gap:"3px"}}><span>{meteo.icon}</span><span>{meteo.temp}°</span></div>}
           </div>
           <button onClick={()=>{setYear(today.getFullYear());setMonth(today.getMonth());}} style={{background:"none",border:"none",cursor:"pointer",textAlign:"center",padding:"2px 8px"}}>
@@ -809,12 +1839,16 @@ function App(){
           ))}
         </div>
       </div>
+
+      {/* CONTENT */}
       <div style={{flex:1,overflowY:"auto",paddingBottom:"80px"}}>
         {view==="month"&&(
           <div>
             <div style={{padding:"8px 8px 4px"}}>
-              <SwipeCalendar year={year} month={month} events={events} alerts={alerts} onDay={setSelDay} onMonthChange={(y,m)=>{setYear(y);setMonth(m);}}/>
+              <SwipeCalendar year={year} month={month} events={events} alerts={alerts}
+                onDay={setSelDay} onMonthChange={(y,m)=>{setYear(y);setMonth(m);}}/>
             </div>
+
             {upcoming.length>0&&(
               <div style={{padding:"0 12px",marginTop:"8px"}}>
                 <div style={{fontSize:"11px",fontWeight:"600",color:sub,letterSpacing:"0.06em",marginBottom:"8px",paddingLeft:"4px"}}>PROSSIMI EVENTI</div>
@@ -842,6 +1876,7 @@ function App(){
                 </div>
               </div>
             )}
+
             <div style={{margin:"10px 12px 0",background:dark?"#1C1C1E":"#F2F2F7",borderRadius:"14px",padding:"12px 14px"}}>
               <div style={{fontSize:"10px",fontWeight:"600",color:sub,letterSpacing:"0.06em",marginBottom:"8px"}}>CATEGORIE</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:"6px 18px"}}>
@@ -850,6 +1885,7 @@ function App(){
             </div>
           </div>
         )}
+
         {view==="list"&&(
           <div style={{padding:"12px"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"12px"}}>
@@ -889,6 +1925,8 @@ function App(){
           </div>
         )}
       </div>
+
+      {/* BOTTOM WEEK */}
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:"430px",background:dark?"rgba(0,0,0,0.95)":"rgba(255,255,255,0.95)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:`1px solid ${border}`,padding:"6px 10px env(safe-area-inset-bottom,16px)",zIndex:150}}>
         <div style={{display:"flex",justifyContent:"space-between"}}>
           {wDays.map((d,i)=>{
@@ -906,6 +1944,7 @@ function App(){
           })}
         </div>
       </div>
+
       {showAl&&<AlertsPanel alerts={alerts} onClose={()=>setShowAl(false)} onGo={day=>{setSelDay(day);setMonth(parseInt(day.split("-")[1])-1);setYear(parseInt(day.split("-")[0]));setView("month");}}/>}
       {selDay&&!showModal&&!showAl&&<DaySheet dayKey={selDay} events={getDay(selDay)} onAdd={()=>{setEditEv(null);setShowModal(true)}} onEdit={ev=>{setEditEv(ev);setShowModal(true)}} onDel={id=>delEv(selDay,id)} onClose={()=>setSelDay(null)}/>}
       {showModal&&selDay&&<Modal dayKey={selDay} onClose={()=>setShowModal(false)} onSave={handleSave} editEvent={editEv}/>}
